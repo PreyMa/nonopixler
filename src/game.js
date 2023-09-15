@@ -11,6 +11,11 @@ function assert(cond, msg= 'Assertion failed') {
   }
 }
 
+/**
+ * @template T
+ * @param {function(...T)} func 
+ * @returns {function(...T)}
+ */
 function debounce( func ) {
   let enabled= true;
   return (...args) => {
@@ -22,6 +27,33 @@ function debounce( func ) {
       });
     }
   };
+}
+
+/**
+ * Inspired by https://www.enjoyalgorithms.com/blog/first-and-last-positions-of-element-in-sorted-array
+ * @template T
+ * @template U
+ * @param {[T]} array 
+ * @param {U} value 
+ * @param {function(T,U):number} compareFunc 
+ * @returns {number}
+ */
+function binaryFindFirst(array, value, compareFunc)
+{
+  let low= 0, high= array.length - 1;
+  while( low <= high ) {
+    let mid= low+ Math.floor((high - low)/2);
+    const comparison= compareFunc(array[mid], value);
+
+    if( (mid === 0 || compareFunc(array[mid - 1], value) < 0) && comparison === 0) {
+      return mid;
+    } else if(comparison < 0) {
+      low= mid + 1;
+    } else {
+      high= mid - 1;
+    }
+  }
+  return -1;
 }
 
 class SFC32 {
@@ -352,12 +384,13 @@ class CellCounter {
     this.values= new Array(numSegments);
     this.lastWasFilled= false;
     this.idx= -1;
-    this.maxSegmentLength= 0;
+    this.maxSegmentLength= 1;
     this.numberCellCount= 0;
   }
 
   insertSegment() {
-    this.values[++this.idx]= [];
+    this.values[++this.idx]= [0];
+    this.numberCellCount++;
     this.lastWasFilled= false;
   }
 
@@ -365,8 +398,10 @@ class CellCounter {
     if( cell.shouldBeFilled ) {
       const segment= this.values[this.idx];
       if( !this.lastWasFilled ) {
-        segment.push(0);
-        this.numberCellCount++;
+        if( segment[segment.length-1] !== 0 ) {
+          segment.push(0);
+          this.numberCellCount++;
+        }
         this.maxSegmentLength= Math.max(this.maxSegmentLength, segment.length);
       }
       segment[segment.length-1]++;
@@ -398,13 +433,19 @@ class PlayField {
     this.mouseIsDown= false;
     this.historyStack= new HistoryStack();
     this.didRegisterWindowEvent= false;
+    this.currentlyHighlightsErrors= false;
 
     this.buildField();
   }
 
+  /**
+   * 
+   * @param {function(TileCell, number, number):boolean} func 
+   * @returns 
+   */
   forEachCell( func ) {
-    for(let x= 0; x< this.width; x++) {
-      for(let y= 0; y< this.height; y++) {
+    for(let y= 0; y< this.height; y++) {
+      for(let x= 0; x< this.width; x++) {
         if( func( this.cells[x][y], x, y ) ) {
           return true;
         }
@@ -501,6 +542,7 @@ class PlayField {
       this.mouseIsDown= true;
       if( !this.showSolution ) {
         this.historyStack.beginAction().changeCellByPointerEvent(e);
+        this.redrawNumberCellsIfNecessary();
       }
     });
 
@@ -530,9 +572,46 @@ class PlayField {
     return !this.forEachCell( cell => !cell.isCorrect());
   }
 
+  highlightWrongRowAndColumn() {
+    this.currentlyHighlightsErrors= this.forEachCell( (cell, x, y) => {
+      if( !cell.isCorrect() ) {
+        let rowIdx= binaryFindFirst(this.rowNumberCells, y, (a,b) => a.segmentIdx- b);
+        let columnIdx= binaryFindFirst(this.columnNumberCells, x, (a,b) => a.segmentIdx- b);
+        assert(rowIdx !== -1 && columnIdx !== -1);
+
+        while(rowIdx < this.rowNumberCells.length && this.rowNumberCells[rowIdx].segmentIdx === y) {
+          this.rowNumberCells[rowIdx++].draw(true);
+        }
+
+        while(columnIdx < this.columnNumberCells.length && this.columnNumberCells[columnIdx].segmentIdx === x) {
+          this.columnNumberCells[columnIdx++].draw(true);
+        }
+
+        return true;
+      }
+    });
+
+    if(!this.currentlyHighlightsErrors) {
+      this.handleWinState();
+    }
+  }
+
   update() {
     if( !this.showSolution && this.isCorrect() ) {
-      alert('Oarge sache');
+      this.handleWinState();
+    }
+  }
+
+  handleWinState() {
+    alert('You solved it');
+  }
+
+  redrawNumberCellsIfNecessary() {
+    if(this.currentlyHighlightsErrors) {
+      this.rowNumberCells.forEach( cell => cell.draw() );
+      this.columnNumberCells.forEach( cell => cell.draw() );
+
+      this.currentlyHighlightsErrors= false;
     }
   }
 }
@@ -541,9 +620,10 @@ document.addEventListener('DOMContentLoaded', () => {
   Cell.initCrossImage();
 
   const gameElement= document.querySelector('.game');
-  const field= new PlayField(gameElement, 10, 10);
+  const field= new PlayField(gameElement, 4, 4);
 
   const solutionButton= document.getElementById('solution-button');
+  const checkButton= document.getElementById('check-button');
   const undoButton= document.getElementById('undo-button');
   const redoButton= document.getElementById('redo-button');
 
@@ -557,6 +637,10 @@ document.addEventListener('DOMContentLoaded', () => {
   solutionButton.addEventListener('click', e => {
     e.target.innerText= field.toggleSolution() ? 'Hide solution' : 'Show solution';
     updateButtons();
+  });
+
+  checkButton.addEventListener('click', () => {
+    field.highlightWrongRowAndColumn();
   });
 
   undoButton.addEventListener('click', e => {
