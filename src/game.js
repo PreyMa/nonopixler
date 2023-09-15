@@ -1,5 +1,18 @@
 'use strict'
 
+function debounce( func ) {
+  let enabled= true;
+  return (...args) => {
+    if( enabled ) {
+      enabled= false;
+      window.requestAnimationFrame(() => {
+        func(...args);
+        enabled= true;
+      });
+    }
+  };
+}
+
 class SFC32 {
   constructor(state) {
     if(state.length !== 4) {
@@ -39,9 +52,10 @@ class Cell {
   static Empty= 0;
   static Filled= 1;
   static Excluded= 2;
+  static Solution= 3;
 
-  static toState( x ) {
-    return x ? Cell.Filled : Cell.Empty;
+  static toState( x, coloredState= Cell.Filled ) {
+    return x ? coloredState : Cell.Empty;
   }
 
   constructor(elem= null) {
@@ -49,18 +63,25 @@ class Cell {
   }
 
   setElement(elem) {
-    this.tableDataElement= elem;
+    return this.tableDataElement= elem;
   }
 
   setColor(color) {
-    if( color === Cell.Empty ) {
-      this.tableDataElement.style.background= '';
-    } else if(color === Cell.Filled ) {
-      this.tableDataElement.style.background= 'blue';
-    } else if( color === Cell.Excluded ) {
       this.tableDataElement.style.background= 'red';
-    } else {
-      throw Error('Unknown cell state');
+    switch( color ) {
+      case Cell.Empty:
+        this.tableDataElement.style.background= '';
+        break;
+      case Cell.Filled:
+        this.tableDataElement.style.background= 'blue';
+        break;
+      case Cell.Excluded:
+        break;
+      case Cell.Solution:
+        this.tableDataElement.style.background= '#d9ea33';
+        break;
+      default:
+        throw Error('Unknown cell state');
     }
   }
 
@@ -75,23 +96,33 @@ class NumberCell extends Cell {
 
 class TileCell extends Cell {
 
-  constructor( rnd ) {
-    super();
+  constructor( field, rnd ) {
+    super( field );
     this.currentState= Cell.Empty;
-    this.targetIsFilled= rnd.next() < 0.3;
+    this.shouldBeFilled= rnd.next() < 0.3;
   }
 
   setElement(e) {
-    super.setElement(e);
-    this.tableDataElement.classList.add('tile');
+    if( super.setElement(e) ) {
+      this.tableDataElement.classList.add('tile');
+    }
   }
 
-  colorCurrent() {
 
+  draw() {
+    if( this.gameField.showSolution ) {
+      this.setColor(Cell.toState(this.shouldBeFilled, Cell.Solution));
+    } else {
+      this.setColor(this.currentState);
+    }
   }
 
-  colorTarget() {
-    this.setColor(Cell.toState(this.targetIsFilled));
+  isCorrect() {
+    if( this.shouldBeFilled ) {
+      return this.currentState === Cell.Filled;
+    }
+
+    return this.currentState !== Cell.Filled;
   }
 }
 
@@ -110,7 +141,7 @@ class CellCounter {
   }
 
   insertCell( cell ) {
-    if( cell.targetIsFilled ) {
+    if( cell.shouldBeFilled ) {
       const segment= this.values[this.idx];
       if( !this.lastWasFilled ) {
         segment.push(0);
@@ -119,7 +150,7 @@ class CellCounter {
       }
       segment[segment.length-1]++;
     }
-    this.lastWasFilled= cell.targetIsFilled;
+    this.lastWasFilled= cell.shouldBeFilled;
   }
 
   valueForCoord( segmentIdx, valueIdx ) {
@@ -145,8 +176,27 @@ class PlayField {
     this.width= width;
     this.height= height;
     this.rand= new SFC32([32145246, 324842254, 72556325, 27563364]);
+    this.showSolution= false;
 
     this.buildField();
+  }
+
+  forEachCell( func ) {
+    for(let x= 0; x< this.width; x++) {
+      for(let y= 0; y< this.height; y++) {
+        if( func( this.cells[x][y] ) ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  toggleSolution() {
+    this.showSolution= !this.showSolution;
+    this.forEachCell( cell => cell.draw() );
+    return this.showSolution;
   }
 
   buildField() {
@@ -157,7 +207,7 @@ class PlayField {
       this.cells[x]= new Array(this.height);
       columnCounter.insertSegment();
       for(let y= 0; y< this.height; y++) {
-        const cell= new TileCell( this.rand );
+        const cell= new TileCell( this, this.rand );
         this.cells[x][y]= cell;
         columnCounter.insertCell( cell );
       }
@@ -195,13 +245,12 @@ class PlayField {
         if( x >= xlen && y >= ylen ) {
           const cell= this.cells[x- xlen][y- ylen];
           cell.setElement(tableCell);
-          cell.colorTarget();
 
         // Upper number area
         } else if( x >= xlen && y < ylen ) {
           const value= columnCounter.valueForCoord(x- xlen, y);
           if( value !== -1 ) {
-            const cell= new NumberCell(tableCell);
+            const cell= new NumberCell( this, tableCell );
             cell.setNumberValue(value);
           }
 
@@ -209,7 +258,7 @@ class PlayField {
         } else if( x < xlen && y >= ylen ) {
           const value= rowCounter.valueForCoord(y- ylen, x);
           if( value !== -1 ) {
-            const cell= new NumberCell(tableCell);
+            const cell= new NumberCell( this, tableCell );
             cell.setNumberValue(value);
           }
         }
@@ -227,4 +276,10 @@ class PlayField {
 document.addEventListener('DOMContentLoaded', () => {
   const gameElement= document.querySelector('.game');
   const field= new PlayField(gameElement, 10, 10);
+
+  const solutionButton= document.getElementById('solution-button');
+
+  solutionButton.addEventListener('click', e => {
+    e.target.innerText= field.toggleSolution() ? 'Hide solution' : 'Show solution';
+  });
 });
