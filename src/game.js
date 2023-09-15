@@ -534,14 +534,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoButton= document.getElementById('redo-button');
 
   function updateButtons() {
-    undoButton.disabled= !field.historyStack.canUndo();
-    redoButton.disabled= !field.historyStack.canRedo();
+    undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
+    redoButton.disabled= field.showSolution || !field.historyStack.canRedo();
   }
 
   updateButtons();
 
   solutionButton.addEventListener('click', e => {
     e.target.innerText= field.toggleSolution() ? 'Hide solution' : 'Show solution';
+    updateButtons();
   });
 
   undoButton.addEventListener('click', e => {
