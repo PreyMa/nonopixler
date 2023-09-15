@@ -48,6 +48,123 @@ class SFC32 {
   }
 }
 
+class HistoryAction {
+  constructor(prev) {
+    this.nextAction= null;
+    this.prevAction= prev;
+    if( prev ) {
+      prev.nextAction= this;
+    }
+
+    this.cellUpdates= [];
+    this.newState= Cell.Empty;
+  }
+
+  changeCellByPointerEvent( event ) {
+    const elem= document.elementFromPoint(event.clientX, event.clientY);
+    if( !elem ) {
+      return;
+    }
+
+    const cell= elem.cellObject;
+    if( !(cell instanceof TileCell) ) {
+      return;
+    }
+
+    const cellAlreadyUpdated= this.cellUpdates.some( update => update.cell === cell );
+    if( cellAlreadyUpdated ) {
+      return;
+    }
+
+    this.cellUpdates.push({
+      cell, oldState: cell.currentState
+    });
+
+    if( this.cellUpdates.length === 1 ) {
+      this.newState= cell.cycleState();
+    } else {
+      cell.setState( this.newState );
+    }
+  }
+
+  undo() {
+    this.cellUpdates.forEach( update => update.cell.setState(update.oldState) );
+  }
+
+  redo() {
+    this.cellUpdates.forEach( update => update.cell.setState(this.newState) );
+  }
+}
+
+class HistoryStack extends EventTarget {
+  constructor() {
+    super();
+    this._firstAction= null;
+    this._lastAction= null;
+    this._currentAction= null;
+  }
+
+  _emitEvent(type, action) {
+    this.dispatchEvent( new CustomEvent('action', {detail: {type, action}}) );
+  }
+
+  beginAction() {
+    const action= new HistoryAction(this._currentAction);
+    if( !this._firstAction || !this._currentAction ) {
+      this._firstAction= action;
+    }
+
+    this._lastAction= action;
+    this._currentAction= action;
+
+    return action;
+  }
+
+  endAction() {
+    if(this._lastAction) {
+      this._emitEvent('do', this._lastAction);
+    }
+  }
+
+  currentAction() {
+    if( !this._lastAction ) {
+      throw Error('No action available');
+    }
+
+    return this._lastAction;
+  }
+
+  canUndo() {
+    return !!this._currentAction;
+  }
+
+  canRedo() {
+    return this._firstAction && this._lastAction && this._currentAction !== this._lastAction;
+  }
+
+  undo() {
+    if( !this.canUndo() ) {
+      return;
+    }
+
+    const actionToUndo= this._currentAction;
+    actionToUndo.undo();
+    this._currentAction= this._currentAction.prevAction;
+    
+    this._emitEvent('undo', actionToUndo);
+  }
+
+  redo() {
+    if( !this.canRedo() ) {
+      return;
+    }
+
+    this._currentAction= this._currentAction ? this._currentAction.nextAction : this._firstAction;
+    this._currentAction.redo();
+    this._emitEvent('redo', this._currentAction);
+  }
+}
+
 class Cell {
   static Empty= 0;
   static Filled= 1;
@@ -58,11 +175,23 @@ class Cell {
     return x ? coloredState : Cell.Empty;
   }
 
-  constructor(elem= null) {
-    this.tableDataElement= elem;
+  static cycleState( x ) {
+    return x >= Cell.Excluded ? Cell.Empty : x+1;
+  }
+
+  constructor(field, elem= null) {
+    this.tableDataElement= null;
+    this.gameField= field;
+    this.setElement(elem);
   }
 
   setElement(elem) {
+    if(this.tableDataElement) {
+      this.tableDataElement.cellObject= null;
+    }
+    if( elem ) {
+      elem.cellObject= this;
+    }
     return this.tableDataElement= elem;
   }
 
@@ -108,6 +237,16 @@ class TileCell extends Cell {
     }
   }
 
+  cycleState() {
+    this.currentState= Cell.cycleState(this.currentState);
+    this.draw();
+    return this.currentState;
+  }
+
+  setState( s ) {
+    this.currentState= s;
+    this.draw();
+  }
 
   draw() {
     if( this.gameField.showSolution ) {
@@ -177,6 +316,8 @@ class PlayField {
     this.height= height;
     this.rand= new SFC32([32145246, 324842254, 72556325, 27563364]);
     this.showSolution= false;
+    this.mouseIsDown= false;
+    this.historyStack= new HistoryStack();
 
     this.buildField();
   }
@@ -270,6 +411,37 @@ class PlayField {
       this.rootElement.removeChild(this.rootElement.firstChild);
     }
     this.rootElement.appendChild(table);
+
+    table.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      this.mouseIsDown= true;
+      if( !this.showSolution ) {
+        this.historyStack.beginAction().changeCellByPointerEvent(e);
+      }
+    });
+    window.addEventListener('pointerup', () => {
+      if( this.mouseIsDown && !this.showSolution ) {
+        this.historyStack.endAction();
+        this.update();
+      }
+
+      this.mouseIsDown= false;
+    });
+    table.addEventListener('pointermove', debounce(e => {
+      if( this.mouseIsDown && !this.showSolution) {
+        this.historyStack.currentAction().changeCellByPointerEvent(e);
+      }
+    }), {passive: true})
+  }
+
+  isCorrect() {
+    return !this.forEachCell( cell => !cell.isCorrect());
+  }
+
+  update() {
+    if( !this.showSolution && this.isCorrect() ) {
+      alert('Oarge sache');
+    }
   }
 }
 
@@ -278,8 +450,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const field= new PlayField(gameElement, 10, 10);
 
   const solutionButton= document.getElementById('solution-button');
+  const undoButton= document.getElementById('undo-button');
+  const redoButton= document.getElementById('redo-button');
+
+  function updateButtons() {
+    undoButton.disabled= !field.historyStack.canUndo();
+    redoButton.disabled= !field.historyStack.canRedo();
+  }
+
+  updateButtons();
 
   solutionButton.addEventListener('click', e => {
     e.target.innerText= field.toggleSolution() ? 'Hide solution' : 'Show solution';
   });
+
+  undoButton.addEventListener('click', e => {
+    field.historyStack.undo();
+  });
+
+  redoButton.addEventListener('click', e => {
+    field.historyStack.redo();
+  });
+
+  field.historyStack.addEventListener('action', updateButtons);
 });
