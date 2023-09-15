@@ -5,6 +5,12 @@ const svgCross= `<?xml version="1.0" encoding="iso-8859-1"?>
   <polygon points="456.851,0 245,212.564 33.149,0 0.708,32.337 212.669,245.004 0.708,457.678 33.149,490 245,277.443 456.851,490 489.292,457.678 277.331,245.004 489.292,32.337 "/>
 </svg>`;
 
+function assert(cond, msg= 'Assertion failed') {
+  if( !cond ) {
+    throw Error( msg );
+  }
+}
+
 function debounce( func ) {
   let enabled= true;
   return (...args) => {
@@ -99,6 +105,44 @@ class HistoryAction {
   redo() {
     this.cellUpdates.forEach( update => update.cell.setState(this.newState) );
   }
+
+  tryMergeWithPrevious() {
+    const prevAction= this.prevAction;
+    if( !prevAction ) {
+      return false;
+    }
+
+    if( prevAction.cellUpdates.length !== this.cellUpdates.length ) {
+      return false;
+    }
+
+    const actionsUpdatedSameCells= !this.cellUpdates.some(
+      newUpdate => !prevAction.cellUpdates.some( oldUpdate => newUpdate.cell === oldUpdate.cell )
+    );
+
+    if(!actionsUpdatedSameCells) {
+      return false;
+    }
+
+    this.prevAction= prevAction.prevAction;
+    if( this.prevAction ) {
+      this.prevAction.nextAction= this;
+    }
+
+    this.cellUpdates.forEach( newUpdate => {
+      let oldUpdate= null;
+      assert(
+        prevAction.cellUpdates.some( update => {
+          oldUpdate= update;
+          return newUpdate.cell === oldUpdate.cell;
+        })
+      );
+
+      newUpdate.oldState= oldUpdate.oldState;
+    });
+
+    return true;
+  }
 }
 
 class HistoryStack extends EventTarget {
@@ -127,6 +171,16 @@ class HistoryStack extends EventTarget {
 
   endAction() {
     if(this._lastAction) {
+      assert(this._lastAction === this._currentAction);
+
+      const didMerge= this._lastAction.tryMergeWithPrevious();
+      if( didMerge ) {
+        if(!this._lastAction.prevAction) {
+          this._firstAction= this._lastAction;
+        }
+        return;  
+      }
+
       this._emitEvent('do', this._lastAction);
     }
   }
