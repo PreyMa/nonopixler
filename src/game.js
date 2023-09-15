@@ -385,6 +385,7 @@ class PlayField {
     this.showSolution= false;
     this.mouseIsDown= false;
     this.historyStack= new HistoryStack();
+    this.didRegisterWindowEvent= false;
 
     this.buildField();
   }
@@ -479,6 +480,8 @@ class PlayField {
     }
     this.rootElement.appendChild(table);
 
+    // Add events to detect when cells are colored in
+    // Pointer down starts a new action on the history stack
     table.addEventListener('pointerdown', e => {
       e.preventDefault();
       this.mouseIsDown= true;
@@ -486,14 +489,22 @@ class PlayField {
         this.historyStack.beginAction().changeCellByPointerEvent(e);
       }
     });
-    window.addEventListener('pointerup', () => {
-      if( this.mouseIsDown && !this.showSolution ) {
-        this.historyStack.endAction();
-        this.update();
-      }
 
-      this.mouseIsDown= false;
-    });
+    // Pointer up ends the current action and updates the game state
+    if( !this.didRegisterWindowEvent ) {
+      window.addEventListener('pointerup', () => {
+        if( this.mouseIsDown && !this.showSolution ) {
+          this.historyStack.endAction();
+          this.update();
+        }
+
+        this.mouseIsDown= false;
+      });
+      this.didRegisterWindowEvent= true;
+    }
+
+    // Pointer move tries to add the currently hovered tile to the
+    // active history action
     table.addEventListener('pointermove', debounce(e => {
       if( this.mouseIsDown && !this.showSolution) {
         this.historyStack.currentAction().changeCellByPointerEvent(e);
