@@ -56,6 +56,21 @@ function binaryFindFirst(array, value, compareFunc)
   return -1;
 }
 
+function base64ToArrayBuffer(base64) {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for( let i = 0; i < binaryString.length; i++ ) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function arrayBufferToBase64(intArray) {
+  const bytes = new Uint8Array(intArray);
+  const binaryString= String.fromCharCode(...bytes);
+  return btoa(binaryString);
+}
+
 class SFC32 {
   constructor(state) {
     if(state.length !== 4) {
@@ -183,6 +198,13 @@ class HistoryStack extends EventTarget {
     this._firstAction= null;
     this._lastAction= null;
     this._currentAction= null;
+  }
+
+  clear() {
+    this._firstAction= null;
+    this._lastAction= null;
+    this._currentAction= null;
+    this._emitEvent('clear', null);
   }
 
   _emitEvent(type, action) {
@@ -421,19 +443,42 @@ class CellCounter {
 }
 
 class PlayField {
-  constructor(rootElem, width, height) {
+  constructor(rootElem) {
     this.cells= null;
     this.rowNumberCells= null;
     this.columnNumberCells= null;
     this.rootElement= rootElem;
-    this.width= width;
-    this.height= height;
-    this.rand= new SFC32([32145246, 324842254, 72556325, 27563364]);
+    this.width= 0;
+    this.height= 0;
+    this.seed= null;
+    this.rand= null;
     this.showSolution= false;
     this.mouseIsDown= false;
     this.historyStack= new HistoryStack();
     this.didRegisterWindowEvent= false;
     this.currentlyHighlightsErrors= false;
+  }
+
+  clear() {
+    this.cells= null;
+    this.rowNumberCells= null;
+    this.columnNumberCells= null;
+    this.seed= null;
+    this.rand= null;
+    this.showSolution= false;
+    this.mouseIsDown= false;
+    this.historyStack.clear();
+    this.currentlyHighlightsErrors= false;
+  }
+
+  initWithSeed(width, height, seed) {
+    this.clear();
+    this.width= width;
+    this.height= height;
+    this.seed= seed;
+
+    const seedArray= new Uint32Array(base64ToArrayBuffer(seed));
+    this.rand= new SFC32([...seedArray]);
 
     this.buildField();
   }
@@ -616,16 +661,69 @@ class PlayField {
   }
 }
 
+function setupModal( name, setupFunc, handlerFunc ) {
+  const openButton= document.getElementById(name+ '-button');
+  const dialog= document.getElementById(name+ '-dialog');
+  const form= dialog.querySelector('form');
+  const cancelButton= form.querySelector('button.cancel');
+  assert(openButton && dialog && form, 'Missing modal element');
+
+  let actualReturnData= null;
+  openButton.addEventListener('click', () => {
+    dialog.returnValue= 'cancel';
+    actualReturnData= null;
+
+    if( setupFunc ) {
+      setupFunc(dialog, form);
+    }
+
+    dialog.showModal();
+  });
+
+  if( cancelButton ) {
+    cancelButton.addEventListener('click', () => dialog.close( 'cancel' ));
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+
+    actualReturnData= {};
+    for( let i = 0; i < form.elements.length; i++ ) {
+      const input= form.elements[i];
+      if( input.nodeName.toLowerCase() === "input" ) {
+        let value= input.value;
+        if( input.type.toLowerCase() === 'number' ) {
+          value= parseFloat(value);
+        }
+        actualReturnData[input.name]= value;
+      }
+    }
+
+    dialog.close( 'ok' );
+    return false;
+  });
+
+  dialog.addEventListener('close', () => {
+    if( dialog.returnValue === 'cancel' ) {
+      handlerFunc( null );
+    } else {
+      handlerFunc( actualReturnData );
+    }
+  });
+
+  return dialog;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   Cell.initCrossImage();
 
   const gameElement= document.querySelector('.game');
-  const field= new PlayField(gameElement, 4, 4);
+  const field= new PlayField(gameElement);
 
   const solutionButton= document.getElementById('solution-button');
   const checkButton= document.getElementById('check-button');
   const undoButton= document.getElementById('undo-button');
-  const redoButton= document.getElementById('redo-button');
+  const redoButton= document.getElementById('redo-button');  
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -633,6 +731,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   updateButtons();
+
+  function newRandomGame(width, height) {
+    const seedArray= new Uint32Array(4);
+    seedArray[0]= Math.floor(Math.random()* 4294967296);
+    seedArray[1]= Math.floor(Math.random()* 4294967296);
+    seedArray[2]= Math.floor(Math.random()* 4294967296);
+    seedArray[3]= Math.floor(Math.random()* 4294967296);
+    field.initWithSeed(5*width, 5*height, arrayBufferToBase64(seedArray.buffer));
+  }
 
   solutionButton.addEventListener('click', e => {
     e.target.innerText= field.toggleSolution() ? 'Hide solution' : 'Show solution';
@@ -652,4 +759,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   field.historyStack.addEventListener('action', updateButtons);
+
+  setupModal('new-game', (dialog, form) => {
+    form.width.value= Math.max(1, Math.floor(field.width/5));
+    form.height.value= Math.max(1, Math.floor(field.height/5));
+  }, settings => {
+    if( settings ) {
+      newRandomGame(settings.width, settings.height);
+    }
+  });
+
+  const a= new Uint32Array(4);
+  a[0]= 32145246;
+  a[1]= 324842254;
+  a[2]= 72556325;
+  a[3]= 27563364;
+  field.initWithSeed(10, 10, arrayBufferToBase64(a.buffer));
 });

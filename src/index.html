@@ -9,12 +9,39 @@
 </head>
 <body>
   <main>
-    <div class="controls">
+    <dialog id="new-game-dialog">
+      <form>
+        <h2>Start new game</h2>
+        <p>
+          Sizes are provided in blocks of 5×5 cells each.
+        </p>
+        <p>
+          <label>
+            Width:
+            <input type="number" name="width" min="1" max="20" required>
+          </label>
+        </p>
+        <p>
+          <label>
+            Height:
+            <input type="number" name="height" min="1" max="20" required>
+          </label>
+        </p>
+        <div>
+          <button type="button" class="cancel">Cancel</button>
+          <button type="submit">Start</button>
+        </div>
+      </form>
+    </dialog>
+    <p>
+      <button id="new-game-button">New Game</button>
+    </p>
+    <p class="controls">
       <button id="solution-button">Show solution</button>
       <button id="check-button">Check</button>
       <button id="undo-button">←</button>
       <button id="redo-button">→</button>
-    </div>
+    </p>
     <div class="game">
       
     </div>
