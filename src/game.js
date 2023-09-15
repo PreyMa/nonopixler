@@ -483,6 +483,10 @@ class PlayField {
     this.buildField();
   }
 
+  reset() {
+    this.initWithSeed(this.width, this.height, this.seed);
+  }
+
   /**
    * 
    * @param {function(TileCell, number, number):boolean} func 
@@ -759,6 +763,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   field.historyStack.addEventListener('action', updateButtons);
+
+  setupModal('reset-game', null, doReset => {
+    if(doReset) {
+      field.reset();
+    }
+  });
 
   setupModal('new-game', (dialog, form) => {
     form.width.value= Math.max(1, Math.floor(field.width/5));
