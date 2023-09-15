@@ -1,0 +1,45 @@
+
+.game table {
+  border-collapse: collapse;
+}
+
+.game td {
+  --cell-size: 1rem;
+  --block-separator-color: rgb(136, 136, 0);
+  --block-separator-width: 3px;
+  width: var(--cell-size);
+  height: var(--cell-size);
+  padding: 0;
+  text-align: center;
+}
+
+.game td.tile {
+  --cell-size: 1.5rem;
+  border: 1px solid black;
+}
+
+.game td:nth-last-child(5n+1) {
+  border-right-color: var(--block-separator-color);
+  border-right-width: var(--block-separator-width);
+}
+
+.game td:nth-last-child(5n) {
+  border-left-color: var(--block-separator-color);
+  border-left-width: var(--block-separator-width);
+}
+
+.game tr:nth-last-child(5n+1) td {
+  border-bottom-color: var(--block-separator-color);
+  border-bottom-width: var(--block-separator-width);
+}
+
+.game tr:nth-last-child(5n) td {
+  border-top-color: var(--block-separator-color);
+  border-top-width: var(--block-separator-width);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .game td.tile:hover {
+    background-color: darkseagreen;
+  }
+}
