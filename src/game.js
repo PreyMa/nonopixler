@@ -281,13 +281,28 @@ class Cell {
     }
   }
 
-  setNumberValue( val ) {
-    this.tableDataElement.innerText= val;
+  setText( txt ) {
+    this.tableDataElement.innerText= txt;
   }
 }
 
 class NumberCell extends Cell {
-  
+  constructor(field, elem, segIdx, valueIdx, value) {
+    super(field, elem);
+    this.segmentIdx= segIdx;
+    this.valueIdx= valueIdx;
+    this.numberValue= value;
+  }
+
+  draw(asError= false) {
+    if( asError ) {
+      this.tableDataElement.style.color= 'red';
+      this.setText( this.numberValue === 0 ? '!' : `${this.numberValue}`);
+    } else {
+      this.tableDataElement.style.color= '';
+      this.setText( this.numberValue === 0 ? '' : `${this.numberValue}`);
+    }
+  }
 }
 
 class TileCell extends Cell {
@@ -359,25 +374,22 @@ class CellCounter {
     this.lastWasFilled= cell.shouldBeFilled;
   }
 
-  valueForCoord( segmentIdx, valueIdx ) {
-    if( segmentIdx >= this.values.length ) {
-      return -1;
-    }
-
-    const segment= this.values[segmentIdx];
-    const offset= this.maxSegmentLength- segment.length;
-    if( valueIdx < offset ) {
-      return -1;
-    }
-
-    return segment[valueIdx- offset];
+  forEach( func ) {
+    this.values.forEach((segment, segmentIdx) => {
+      segment.forEach((value, valueIdx) => {
+        const offset= this.maxSegmentLength- segment.length;
+        const paddedIdx= valueIdx+ offset;
+        func( segmentIdx, valueIdx, paddedIdx, value );
+      })
+    });
   }
 }
 
 class PlayField {
   constructor(rootElem, width, height) {
     this.cells= null;
-    this.numberCells= null;
+    this.rowNumberCells= null;
+    this.columnNumberCells= null;
     this.rootElement= rootElem;
     this.width= width;
     this.height= height;
@@ -393,7 +405,7 @@ class PlayField {
   forEachCell( func ) {
     for(let x= 0; x< this.width; x++) {
       for(let y= 0; y< this.height; y++) {
-        if( func( this.cells[x][y] ) ) {
+        if( func( this.cells[x][y], x, y ) ) {
           return true;
         }
       }
@@ -431,10 +443,6 @@ class PlayField {
       }
     }
 
-    this.numberCells= new Array(rowCounter.numberCellCount+ columnCounter.numberCellCount);
-
-    const table= document.createElement('table');
-
     // The table is larger than the number of tiles to have
     // space for the number cells
     const xlen= rowCounter.maxSegmentLength;
@@ -442,6 +450,8 @@ class PlayField {
     const tableWidth= this.width+ xlen;
     const tableHeight= this.height+ ylen;
 
+    // Build the table DOM
+    const table= document.createElement('table');
     for(let y= 0; y< tableHeight; y++) {
       const tableRow= document.createElement('tr');
       table.appendChild(tableRow);
@@ -454,25 +464,29 @@ class PlayField {
         if( x >= xlen && y >= ylen ) {
           const cell= this.cells[x- xlen][y- ylen];
           cell.setElement(tableCell);
-
-        // Upper number area
-        } else if( x >= xlen && y < ylen ) {
-          const value= columnCounter.valueForCoord(x- xlen, y);
-          if( value !== -1 ) {
-            const cell= new NumberCell( this, tableCell );
-            cell.setNumberValue(value);
-          }
-
-        // Left number area
-        } else if( x < xlen && y >= ylen ) {
-          const value= rowCounter.valueForCoord(y- ylen, x);
-          if( value !== -1 ) {
-            const cell= new NumberCell( this, tableCell );
-            cell.setNumberValue(value);
-          }
         }
       }
     }
+
+    // Allocate arrays for the number cells
+    let rowNumberInsertionIdx= 0, columnNumberInsertionIdx= 0;
+    this.rowNumberCells= new Array( rowCounter.numberCellCount );
+    this.columnNumberCells= new Array( columnCounter.numberCellCount );
+
+    // Insert the number cells ordered by segment then value idx
+    columnCounter.forEach((segmentIdx, valueIdx, paddedIdx, value) => {
+      const tableCell= table.childNodes[paddedIdx].childNodes[xlen+ segmentIdx];
+      const cell= new NumberCell( this, tableCell, segmentIdx, valueIdx, value );
+      cell.draw();
+      this.columnNumberCells[columnNumberInsertionIdx++]= cell;
+    });
+
+    rowCounter.forEach((segmentIdx, valueIdx, paddedIdx, value) => {
+      const tableCell= table.childNodes[ylen+ segmentIdx].childNodes[paddedIdx];
+      const cell= new NumberCell( this, tableCell, segmentIdx, valueIdx, value );
+      cell.draw();
+      this.rowNumberCells[rowNumberInsertionIdx++]= cell;
+    });
 
     // Clear out the root element and make the table its sole child
     while(this.rootElement.firstChild) {
