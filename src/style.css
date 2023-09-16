@@ -8,6 +8,8 @@
   --cell-size: 1rem;
   --block-separator-color: rgb(136, 136, 0);
   --block-separator-width: 3px;
+  --shadow-color: rgb(196, 196, 196);
+  --shadow-size: 6px;
   width: var(--cell-size);
   height: var(--cell-size);
   padding: 0;
@@ -22,6 +24,7 @@
   border: 1px solid black;
 }
 
+/** 5x5 block separator lines **/
 .game td:nth-last-child(5n+1) {
   border-right-color: var(--block-separator-color);
   border-right-width: var(--block-separator-width);
@@ -40,6 +43,19 @@
 .game tr:nth-last-child(5n) td {
   border-top-color: var(--block-separator-color);
   border-top-width: var(--block-separator-width);
+}
+
+/** Box shadow made from many small shadows **/
+.game td.tile:last-child {
+  box-shadow: var(--shadow-size) 0px 0px 0px var(--shadow-color);
+}
+
+.game tr:last-child td.tile {
+  box-shadow: 0px var(--shadow-size) 0px 0px var(--shadow-color);
+}
+
+.game tr:last-child td.tile:last-child {
+  box-shadow: calc(var(--shadow-size) / 2) calc(var(--shadow-size) / 2) 0px calc(var(--shadow-size) / 2) var(--shadow-color);
 }
 
 @media (hover: hover) and (pointer: fine) {
