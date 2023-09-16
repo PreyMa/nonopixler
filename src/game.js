@@ -457,6 +457,7 @@ class PlayField {
     this.historyStack= new HistoryStack();
     this.didRegisterWindowEvent= false;
     this.currentlyHighlightsErrors= false;
+    this.squaredMode= false;
   }
 
   clear() {
@@ -508,6 +509,11 @@ class PlayField {
     this.showSolution= !this.showSolution;
     this.forEachCell( cell => cell.draw() );
     return this.showSolution;
+  }
+
+  setSquaredMode( enable ) {
+    this.squaredMode= enable;
+    this.rootElement.firstElementChild.classList.toggle('squared', enable);
   }
 
   buildField() {
@@ -583,6 +589,7 @@ class PlayField {
       this.rootElement.removeChild(this.rootElement.firstChild);
     }
     this.rootElement.appendChild(table);
+    this.setSquaredMode(this.squaredMode);
 
     // Add events to detect when cells are colored in
     // Pointer down starts a new action on the history stack
@@ -727,7 +734,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const solutionButton= document.getElementById('solution-button');
   const checkButton= document.getElementById('check-button');
   const undoButton= document.getElementById('undo-button');
-  const redoButton= document.getElementById('redo-button');  
+  const redoButton= document.getElementById('redo-button');
+  const squareFieldsCheckbox= document.getElementById('square-fields-checkbox');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -743,6 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
     seedArray[2]= Math.floor(Math.random()* 4294967296);
     seedArray[3]= Math.floor(Math.random()* 4294967296);
     field.initWithSeed(5*width, 5*height, arrayBufferToBase64(seedArray.buffer));
+    field.setSquaredMode( squareFieldsCheckbox.checked );
   }
 
   solutionButton.addEventListener('click', e => {
@@ -763,6 +772,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   field.historyStack.addEventListener('action', updateButtons);
+
+  squareFieldsCheckbox.addEventListener('change', () => {
+    field.setSquaredMode( squareFieldsCheckbox.checked );
+  });
 
   setupModal('reset-game', null, doReset => {
     if(doReset) {

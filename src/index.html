@@ -46,16 +46,27 @@
         </div>
       </form>
     </dialog>
-    <p>
-      <button id="new-game-button">New Game</button>
-      <button id="reset-game-button">Reset Game</button>
-    </p>
-    <p class="controls">
-      <button id="solution-button">Show solution</button>
-      <button id="check-button">Check</button>
-      <button id="undo-button">←</button>
-      <button id="redo-button">→</button>
-    </p>
+    <section>
+      <p>
+        <button id="new-game-button">New Game</button>
+        <button id="reset-game-button">Reset Game</button>
+      </p>
+      <p class="controls">
+        <button id="solution-button">Show solution</button>
+        <button id="check-button">Check</button>
+        <button id="undo-button">←</button>
+        <button id="redo-button">→</button>
+      </p>
+    </section>
+    <section>
+        <details>
+          <summary>More Settings</summary>
+          <label>
+            Force square fields:
+            <input type="checkbox" id="square-fields-checkbox">
+          </label>
+        </details>
+    </section>
     <div class="game">
       
     </div>

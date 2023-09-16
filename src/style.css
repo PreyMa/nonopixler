@@ -1,7 +1,22 @@
 
+main section {
+  display: inline-block;
+  margin-right: 1.5em;
+  vertical-align: top;
+}
+
+main details, main p {
+  margin: 1em 0;
+}
+
 .game table {
   border-collapse: collapse;
   touch-action: pinch-zoom;
+  table-layout: fixed;
+}
+
+.game table.squared {
+  width: max-content;
 }
 
 .game td {
