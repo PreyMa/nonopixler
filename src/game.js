@@ -12,6 +12,7 @@ function assert(cond, msg= 'Assertion failed') {
 }
 
 /**
+ * Debounces fast events by synchronizing with the animation frame rate
  * @template T
  * @param {function(...T)} func 
  * @returns {function(...T)}
@@ -30,9 +31,10 @@ function debounce( func ) {
 }
 
 /**
+ * Finds the first occurrence of an object in a sorted array with the help
+ * of binary search.
  * Inspired by https://www.enjoyalgorithms.com/blog/first-and-last-positions-of-element-in-sorted-array
- * @template T
- * @template U
+ * @template T, U
  * @param {[T]} array 
  * @param {U} value 
  * @param {function(T,U):number} compareFunc 
@@ -750,6 +752,8 @@ function setupModal( name, setupFunc, handlerFunc ) {
   const cancelButton= form.querySelector('button.cancel');
   assert(openButton && dialog && form, 'Missing modal element');
 
+  // The open button shows the dialog. An optional setup function
+  // inits the dialog and form elements
   let actualReturnData= null;
   openButton.addEventListener('click', () => {
     dialog.returnValue= 'cancel';
@@ -762,10 +766,14 @@ function setupModal( name, setupFunc, handlerFunc ) {
     dialog.showModal();
   });
 
+  // If a cancel button exists it closes the dialog without a value
   if( cancelButton ) {
     cancelButton.addEventListener('click', () => dialog.close( 'cancel' ));
   }
 
+  // When the form is submitted via hitting return or submit button, the
+  // form field names and contents are packed into an object to be returned 
+  // later and the dialog is closed
   form.addEventListener('submit', e => {
     e.preventDefault();
 
@@ -785,6 +793,7 @@ function setupModal( name, setupFunc, handlerFunc ) {
     return false;
   });
 
+  // When the dialog closes data is returned if it exists
   dialog.addEventListener('close', () => {
     if( dialog.returnValue === 'cancel' ) {
       handlerFunc( null );
