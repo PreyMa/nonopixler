@@ -106,6 +106,77 @@ class SFC32 {
   }
 }
 
+class GameSettings {
+  constructor(width, height, seed) {
+    this.width= width;
+    this.height= height;
+    this.seed= seed;
+    this.serialized= null;
+  }
+
+  static withRandomSeed(width, height) {
+    const seedArray= new Uint32Array(4);
+    seedArray[0]= Math.floor(Math.random()* 4294967296);
+    seedArray[1]= Math.floor(Math.random()* 4294967296);
+    seedArray[2]= Math.floor(Math.random()* 4294967296);
+    seedArray[3]= Math.floor(Math.random()* 4294967296);
+    const seedString= arrayBufferToBase64( seedArray.buffer );
+
+    return new GameSettings(width, height, seedString);
+  }
+
+  static fromQueryParam() {
+    const url= new URL(window.location);
+    const encoded= url.searchParams.get('s');
+    if(!encoded) {
+      return null;
+    }
+
+    try {
+      const settings= JSON.parse(atob(encoded));
+      const valid=
+        typeof settings.width === 'number' &&
+        typeof settings.height === 'number' &&
+        typeof settings.seed === 'string' &&
+        settings.width > 0 && settings.width <= 20 &&
+        settings.height > 0 && settings.height <= 20 &&
+        settings.seed.length === 24;
+
+      if( !valid ) {
+        return null;
+      }
+
+      return new GameSettings(
+        Math.floor(settings.width),
+        Math.floor(settings.height),
+        settings.seed
+      );
+
+    } catch(e) {
+      console.error('Could not decode settings from query param', e);
+      return null;
+    }
+  }
+
+  serialize() {
+    if(this.serialized) {
+      return this.serialized;
+    }
+
+    return this.serialized= btoa(JSON.stringify({
+      width: this.width,
+      height: this.height,
+      seed: this.seed
+    }));
+  }
+
+  replaceQueryParam() {
+    const url= new URL(window.location);
+    url.searchParams.set('s', this.serialize())
+    window.history.replaceState( null, '', url );
+  }
+}
+
 class HistoryAction {
   constructor(prev) {
     this.nextAction= null;
@@ -472,20 +543,20 @@ class PlayField {
     this.currentlyHighlightsErrors= false;
   }
 
-  initWithSeed(width, height, seed) {
+  initWithSettings(settings) {
     this.clear();
-    this.width= width;
-    this.height= height;
-    this.seed= seed;
+    this.width= settings.width* 5;
+    this.height= settings.height* 5;
+    this.seed= settings.seed;
 
-    const seedArray= new Uint32Array(base64ToArrayBuffer(seed));
+    const seedArray= new Uint32Array(base64ToArrayBuffer(this.seed));
     this.rand= new SFC32([...seedArray]);
 
     this.buildField();
   }
 
   reset() {
-    this.initWithSeed(this.width, this.height, this.seed);
+    this.initWithSettings(new GameSettings(this.width/5, this.height/5, this.seed));
   }
 
   /**
@@ -745,13 +816,9 @@ document.addEventListener('DOMContentLoaded', () => {
   updateButtons();
 
   function newRandomGame(width, height) {
-    const seedArray= new Uint32Array(4);
-    seedArray[0]= Math.floor(Math.random()* 4294967296);
-    seedArray[1]= Math.floor(Math.random()* 4294967296);
-    seedArray[2]= Math.floor(Math.random()* 4294967296);
-    seedArray[3]= Math.floor(Math.random()* 4294967296);
-    field.initWithSeed(5*width, 5*height, arrayBufferToBase64(seedArray.buffer));
-    field.setSquaredMode( squareFieldsCheckbox.checked );
+    const settings= GameSettings.withRandomSeed(width, height);
+    settings.replaceQueryParam();
+    field.initWithSettings( settings );
   }
 
   solutionButton.addEventListener('click', e => {
@@ -792,10 +859,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  const a= new Uint32Array(4);
+  let settings= GameSettings.fromQueryParam();
+  if( settings ) {
+    console.log('Settings from query params:', settings);
+    field.initWithSettings(settings);
+  } else {
+    console.log('Generate new settings:', settings);
+    newRandomGame(1, 1);
+  }
+
+
+  /*const a= new Uint32Array(4);
   a[0]= 32145246;
   a[1]= 324842254;
   a[2]= 72556325;
   a[3]= 27563364;
-  field.initWithSeed(10, 10, arrayBufferToBase64(a.buffer));
+  field.initWithSettings(new GameSettings(10, 10, arrayBufferToBase64(a.buffer)));*/
 });
