@@ -179,6 +179,35 @@ class GameSettings {
   }
 }
 
+class RowColumnNumberSpan {
+  constructor(rows, columns, rowIndex, columnIndex) {
+    this.rows= rows;
+    this.columns= columns;
+    this.rowIndex= rowIndex;
+    this.columnIndex= columnIndex;
+  }
+
+  static findFromTileCoords(rowNumberCells, columnNumberCells, x, y) {
+    const rowIdx= binaryFindFirst(rowNumberCells, y, (a,b) => a.segmentIdx- b);
+    const columnIdx= binaryFindFirst(columnNumberCells, x, (a,b) => a.segmentIdx- b);
+    assert(rowIdx !== -1 && columnIdx !== -1);
+
+    return new RowColumnNumberSpan(rowNumberCells, columnNumberCells, rowIdx, columnIdx);
+  }
+
+  forEach( func ) {
+    let idx= this.rowIndex;
+    while(idx < this.rows.length && this.rows[idx].segmentIdx === this.rows[this.rowIndex].segmentIdx) {
+      func( this.rows[idx++], false );
+    }
+
+    idx= this.columnIndex;
+    while(idx < this.columns.length && this.columns[idx].segmentIdx === this.columns[this.columnIndex].segmentIdx) {
+      func( this.columns[idx++], true );
+    }
+  }
+}
+
 class HistoryAction {
   constructor(prev) {
     this.nextAction= null;
@@ -192,7 +221,10 @@ class HistoryAction {
   }
 
   changeCellByPointerEvent( event ) {
-    const elem= document.elementFromPoint(event.clientX, event.clientY);
+    return this.changeCellByElement( document.elementFromPoint(event.clientX, event.clientY) )
+  }
+
+  changeCellByElement( elem ) {
     if( !elem ) {
       return;
     }
@@ -411,6 +443,14 @@ class Cell {
   setText( txt ) {
     this.tableDataElement.innerText= txt;
   }
+
+  get x() {
+    return this.tableDataElement.cellIndex;
+  }
+
+  get y() {
+    return this.tableDataElement.parentNode.rowIndex;
+  }
 }
 
 class NumberCell extends Cell {
@@ -472,6 +512,14 @@ class TileCell extends Cell {
 
     return this.currentState !== Cell.Filled;
   }
+
+  get tileX() {
+    return this.x- this.gameField.numberOffsetX;
+  }
+
+  get tileY() {
+    return this.y- this.gameField.numberOffsetY;
+  }
 }
 
 class CellCounter {
@@ -523,6 +571,8 @@ class PlayField {
     this.rootElement= rootElem;
     this.width= 0;
     this.height= 0;
+    this.numberOffsetX= 0;
+    this.numberOffsetY= 0;
     this.seed= null;
     this.rand= null;
     this.showSolution= false;
@@ -538,6 +588,8 @@ class PlayField {
     this.cells= null;
     this.rowNumberCells= null;
     this.columnNumberCells= null;
+    this.numberOffsetX= 0;
+    this.numberOffsetY= 0;
     this.seed= null;
     this.rand= null;
     this.showSolution= false;
@@ -579,6 +631,10 @@ class PlayField {
     return false;
   }
 
+  get table() {
+    return this.rootElement.firstElementChild;
+  }
+
   toggleSolution() {
     this.showSolution= !this.showSolution;
     this.forEachCell( cell => cell.draw() );
@@ -587,12 +643,12 @@ class PlayField {
 
   setSquaredMode( enable ) {
     this.squaredMode= enable;
-    this.rootElement.firstElementChild.classList.toggle('squared', enable);
+    this.table.classList.toggle('squared', enable);
   }
 
   setDrawMode( enable ) {
     this.enableDrawing= enable;
-    this.rootElement.firstElementChild.classList.toggle('no-draw', !enable);
+    this.table.classList.toggle('no-draw', !enable);
   }
 
   buildField() {
@@ -620,8 +676,8 @@ class PlayField {
 
     // The table is larger than the number of tiles to have
     // space for the number cells
-    const xlen= rowCounter.maxSegmentLength;
-    const ylen= columnCounter.maxSegmentLength;
+    const xlen= this.numberOffsetX= rowCounter.maxSegmentLength;
+    const ylen= this.numberOffsetY= columnCounter.maxSegmentLength;
     const tableWidth= this.width+ xlen;
     const tableHeight= this.height+ ylen;
 
@@ -716,8 +772,11 @@ class PlayField {
   }
 
   handlePointerMove( e ) {
+    const elem= document.elementFromPoint(e.clientX, e.clientY);
+
     if( this.enableDrawing && this.mouseIsDown && !this.showSolution) {
-      this.historyStack.currentAction().changeCellByPointerEvent(e);
+      this.historyStack.currentAction().changeCellByElement( elem );
+    }
     }
   }
 
@@ -737,17 +796,8 @@ class PlayField {
   highlightWrongRowAndColumn() {
     this.currentlyHighlightsErrors= this.forEachCell( (cell, x, y) => {
       if( !cell.isCorrect() ) {
-        let rowIdx= binaryFindFirst(this.rowNumberCells, y, (a,b) => a.segmentIdx- b);
-        let columnIdx= binaryFindFirst(this.columnNumberCells, x, (a,b) => a.segmentIdx- b);
-        assert(rowIdx !== -1 && columnIdx !== -1);
-
-        while(rowIdx < this.rowNumberCells.length && this.rowNumberCells[rowIdx].segmentIdx === y) {
-          this.rowNumberCells[rowIdx++].draw(true);
-        }
-
-        while(columnIdx < this.columnNumberCells.length && this.columnNumberCells[columnIdx].segmentIdx === x) {
-          this.columnNumberCells[columnIdx++].draw(true);
-        }
+        const rowColumnSpan= RowColumnNumberSpan.findFromTileCoords(this.rowNumberCells, this.columnNumberCells, x, y);
+        rowColumnSpan.forEach( cell => cell.draw(true) );
 
         return true;
       }
