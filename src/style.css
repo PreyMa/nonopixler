@@ -39,6 +39,10 @@ main details, main p {
   touch-action: pinch-zoom;
 }
 
+.game table.no-draw td.tile {
+  touch-action: unset;
+}
+
 /** 5x5 block separator lines **/
 .game td:nth-last-child(5n+1) {
   border-right-color: var(--block-separator-color);

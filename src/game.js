@@ -531,6 +531,7 @@ class PlayField {
     this.didRegisterWindowEvent= false;
     this.currentlyHighlightsErrors= false;
     this.squaredMode= false;
+    this.enableDrawing= true;
   }
 
   clear() {
@@ -587,6 +588,11 @@ class PlayField {
   setSquaredMode( enable ) {
     this.squaredMode= enable;
     this.rootElement.firstElementChild.classList.toggle('squared', enable);
+  }
+
+  setDrawMode( enable ) {
+    this.enableDrawing= enable;
+    this.rootElement.firstElementChild.classList.toggle('no-draw', !enable);
   }
 
   buildField() {
@@ -667,23 +673,13 @@ class PlayField {
     // Add events to detect when cells are colored in
     // Pointer down starts a new action on the history stack
     table.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      this.mouseIsDown= true;
-      if( !this.showSolution ) {
-        this.historyStack.beginAction().changeCellByPointerEvent(e);
-        this.redrawNumberCellsIfNecessary();
-      }
+      this.handlePointerDown(e);
     });
 
     // Pointer up ends the current action and updates the game state
     if( !this.didRegisterWindowEvent ) {
       window.addEventListener('pointerup', () => {
-        if( this.mouseIsDown && !this.showSolution ) {
-          this.historyStack.endAction();
-          this.update();
-        }
-
-        this.mouseIsDown= false;
+        this.handlePointerUp();
       });
       this.didRegisterWindowEvent= true;
     }
@@ -691,10 +687,47 @@ class PlayField {
     // Pointer move tries to add the currently hovered tile to the
     // active history action
     table.addEventListener('pointermove', debounce(e => {
-      if( this.mouseIsDown && !this.showSolution) {
-        this.historyStack.currentAction().changeCellByPointerEvent(e);
-      }
+      this.handlePointerMove( e );
     }), {passive: true})
+
+    table.addEventListener('click', e => {
+      this.handlePointerClick( e );
+    });
+  }
+
+  handlePointerDown( e ) {
+    if( this.enableDrawing ) {
+      e.preventDefault();
+      this.mouseIsDown= true;
+      if( !this.showSolution ) {
+        this.historyStack.beginAction().changeCellByPointerEvent(e);
+        this.redrawNumberCellsIfNecessary();
+      }
+    }
+  }
+
+  handlePointerUp() {
+    if( this.enableDrawing && this.mouseIsDown && !this.showSolution ) {
+      this.historyStack.endAction();
+      this.update();
+    }
+
+    this.mouseIsDown= false;
+  }
+
+  handlePointerMove( e ) {
+    if( this.enableDrawing && this.mouseIsDown && !this.showSolution) {
+      this.historyStack.currentAction().changeCellByPointerEvent(e);
+    }
+  }
+
+  handlePointerClick( e ) {
+    if( !this.enableDrawing && !this.showSolution ) {
+      this.historyStack.beginAction().changeCellByPointerEvent(e);
+      this.historyStack.endAction();
+      this.redrawNumberCellsIfNecessary();
+      this.update();
+    }
   }
 
   isCorrect() {
@@ -816,6 +849,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const undoButton= document.getElementById('undo-button');
   const redoButton= document.getElementById('redo-button');
   const squareFieldsCheckbox= document.getElementById('square-fields-checkbox');
+  const enableDrawingCheckbox= document.getElementById('enable-drawing-checkbox');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -851,6 +885,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   squareFieldsCheckbox.addEventListener('change', () => {
     field.setSquaredMode( squareFieldsCheckbox.checked );
+  });
+
+  enableDrawingCheckbox.addEventListener('change', () => {
+    field.setDrawMode( enableDrawingCheckbox.checked );
   });
 
   setupModal('reset-game', null, doReset => {
