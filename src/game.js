@@ -145,7 +145,7 @@ class GameSettings {
         settings.seed.length === 24;
 
       if( !valid ) {
-        return null;
+        throw 'validationError';
       }
 
       return new GameSettings(
@@ -156,7 +156,7 @@ class GameSettings {
 
     } catch(e) {
       console.error('Could not decode settings from query param', e);
-      return null;
+      throw e;
     }
   }
 
@@ -949,6 +949,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoButton= document.getElementById('redo-button');
   const squareFieldsCheckbox= document.getElementById('square-fields-checkbox');
   const enableDrawingCheckbox= document.getElementById('enable-drawing-checkbox');
+  const badLinkDialog= document.getElementById('bad-link-dialog');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -1005,13 +1006,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  let settings= GameSettings.fromQueryParam();
-  if( settings ) {
-    console.log('Settings from query params:', settings);
-    field.initWithSettings(settings);
-  } else {
-    console.log('Generate new settings:', settings);
+  badLinkDialog.addEventListener('close', () => {
     newRandomGame(1, 1);
+  });
+
+  try {
+    const settings= GameSettings.fromQueryParam();
+    if( settings ) {
+      console.log('Settings from query params:', settings);
+      field.initWithSettings(settings);
+    } else {
+      console.log('Generate new settings:', settings);
+      newRandomGame(1, 1);
+    }
+  } catch( e ) {
+    document.getElementById('bad-link-dialog-message').innerText= (e === 'validationError')
+      ? 'The URL is missing data. Maybe it is too old.'
+      : 'The data is malformed. Maybe you missed some characters when copy-pasting.';
+      badLinkDialog.showModal();
   }
 
 
