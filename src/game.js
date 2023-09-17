@@ -954,6 +954,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
     redoButton.disabled= field.showSolution || !field.historyStack.canRedo();
+    solutionButton.innerText= field.showSolution ? 'Hide solution' : 'Show solution';
   }
 
   updateButtons();
@@ -962,10 +963,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings= GameSettings.withRandomSeed(width, height);
     settings.replaceQueryParam();
     field.initWithSettings( settings );
+    updateButtons();
   }
 
   solutionButton.addEventListener('click', e => {
-    e.target.innerText= field.toggleSolution() ? 'Hide solution' : 'Show solution';
+    field.toggleSolution();
     updateButtons();
   });
 
