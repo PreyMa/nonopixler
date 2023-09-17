@@ -11,7 +11,6 @@ main details, main p {
 
 .game table {
   border-collapse: collapse;
-  touch-action: pinch-zoom;
   table-layout: fixed;
 }
 
@@ -37,6 +36,7 @@ main details, main p {
 .game td.tile {
   --cell-size: 1.5rem;
   border: 1px solid black;
+  touch-action: pinch-zoom;
 }
 
 /** 5x5 block separator lines **/
