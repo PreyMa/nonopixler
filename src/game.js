@@ -196,14 +196,19 @@ class RowColumnNumberSpan {
   }
 
   forEach( func ) {
-    let idx= this.rowIndex;
-    while(idx < this.rows.length && this.rows[idx].segmentIdx === this.rows[this.rowIndex].segmentIdx) {
-      func( this.rows[idx++], false );
+    let idx;
+    if( this.rows ) {
+      idx= this.rowIndex;
+      while(idx < this.rows.length && this.rows[idx].segmentIdx === this.rows[this.rowIndex].segmentIdx) {
+        func( this.rows[idx++], false );
+      }
     }
 
-    idx= this.columnIndex;
-    while(idx < this.columns.length && this.columns[idx].segmentIdx === this.columns[this.columnIndex].segmentIdx) {
-      func( this.columns[idx++], true );
+    if( this.columns ) {
+      idx= this.columnIndex;
+      while(idx < this.columns.length && this.columns[idx].segmentIdx === this.columns[this.columnIndex].segmentIdx) {
+        func( this.columns[idx++], true );
+      }
     }
   }
 }
@@ -531,6 +536,10 @@ class TileCell extends Cell {
     return this.currentState !== Cell.Filled;
   }
 
+  isFilled() {
+    return this.currentState === Cell.Filled;
+  }
+
   get tileX() {
     return this.x- this.gameField.numberOffsetX;
   }
@@ -543,6 +552,10 @@ class TileCell extends Cell {
 class CellCounter {
   constructor( numSegments ) {
     this.values= new Array(numSegments);
+    this.clear();
+  }
+
+  clear() {
     this.lastWasFilled= false;
     this.idx= -1;
     this.maxSegmentLength= 1;
@@ -550,13 +563,20 @@ class CellCounter {
   }
 
   insertSegment() {
-    this.values[++this.idx]= [0];
+    this.idx++;
+    if( Array.isArray(this.values[this.idx]) ) {
+      this.values[this.idx].length= 1;
+      this.values[this.idx][0]= 0;
+    } else {
+      this.values[this.idx]= [0];
+    }
     this.numberCellCount++;
     this.lastWasFilled= false;
   }
 
-  insertCell( cell ) {
-    if( cell.shouldBeFilled ) {
+  insertCell( cell, useTargetValue= true ) {
+    const cellValue= useTargetValue ? cell.shouldBeFilled : cell.isFilled();
+    if( cellValue ) {
       const segment= this.values[this.idx];
       if( !this.lastWasFilled ) {
         if( segment[segment.length-1] !== 0 ) {
@@ -567,7 +587,7 @@ class CellCounter {
       }
       segment[segment.length-1]++;
     }
-    this.lastWasFilled= cell.shouldBeFilled;
+    this.lastWasFilled= cellValue;
   }
 
   forEach( func ) {
@@ -601,6 +621,7 @@ class PlayField {
     this.squaredMode= false;
     this.enableDrawing= true;
     this.lastRowColumnHighlight= null;
+    this.allowAlternativeSolutions= false;
   }
 
   clear() {
@@ -616,6 +637,7 @@ class PlayField {
     this.historyStack.clear();
     this.currentlyHighlightsErrors= false;
     this.lastRowColumnHighlight= null;
+    this.allowAlternativeSolutions= false;
   }
 
   initWithSettings(settings) {
@@ -838,19 +860,86 @@ class PlayField {
     this.lastRowColumnHighlight= rowColumnSpan;
   }
 
+  findBadNumberCellSpan() {
+    try {
+      let readIdx= 0;
+      let counter= new CellCounter(1);
+      for(let x= 0; x!== this.width; x++) {
+        counter.clear();
+        counter.insertSegment();
+        for(let y= 0; y !== this.height; y++) {
+          counter.insertCell(this.cells[x][y], false);
+        }
+        const beginSegmentIdx= readIdx;
+        counter.forEach((segmentIdx, valueIdx, paddedIdx, value) => {
+          if( readIdx >= this.columnNumberCells.length ) {
+            throw new RowColumnNumberSpan(null, this.columnNumberCells, 0, beginSegmentIdx );
+          }
+          const cell= this.columnNumberCells[readIdx];
+          if( cell.segmentIdx !== x || cell.valueIdx !== valueIdx || cell.numberValue !== value ) {
+            throw new RowColumnNumberSpan(null, this.columnNumberCells, 0, beginSegmentIdx );
+          }
+          readIdx++;
+        });
+      }
+
+      readIdx= 0;
+      for(let y= 0; y!== this.height; y++) {
+        counter.clear();
+        counter.insertSegment();
+        for(let x= 0; x !== this.width; x++) {
+          counter.insertCell(this.cells[x][y], false);
+        }
+        const beginSegmentIdx= readIdx;
+        counter.forEach((segmentIdx, valueIdx, paddedIdx, value) => {
+          if( readIdx >= this.rowNumberCells.length ) {
+            throw new RowColumnNumberSpan(this.rowNumberCells, null, beginSegmentIdx, 0 );
+          }
+          const cell= this.rowNumberCells[readIdx];
+          if( cell.segmentIdx !== y || cell.valueIdx !== valueIdx || cell.numberValue !== value ) {
+            throw new RowColumnNumberSpan(this.rowNumberCells, null, beginSegmentIdx, 0 );
+          }
+          readIdx++;
+        });
+      }
+    } catch( e ) {
+      if( e instanceof RowColumnNumberSpan ) {
+        return e;
+      }
+
+      throw e;
+    }
+
+    return null;
+  }
+
   isCorrect() {
-    return !this.forEachCell( cell => !cell.isCorrect());
+    if( !this.allowAlternativeSolutions ) {
+      return !this.forEachCell( cell => !cell.isCorrect());
+    }
+
+    return this.findBadNumberCellSpan() === null;
   }
 
   highlightWrongRowAndColumn() {
-    this.currentlyHighlightsErrors= this.forEachCell( (cell, x, y) => {
-      if( !cell.isCorrect() ) {
-        const rowColumnSpan= RowColumnNumberSpan.findFromTileCoords(this.rowNumberCells, this.columnNumberCells, x, y);
-        rowColumnSpan.forEach( cell => cell.setError(true) );
+    this.redrawNumberCellsIfNecessary();
 
-        return true;
+    if( this.allowAlternativeSolutions ) {
+      const rowColumnSpan= this.findBadNumberCellSpan();
+      this.currentlyHighlightsErrors= !!rowColumnSpan;
+      if( rowColumnSpan ) {
+        rowColumnSpan.forEach( cell => cell.setError(true) );
       }
-    });
+    } else {
+      this.currentlyHighlightsErrors= this.forEachCell( (cell, x, y) => {
+        if( !cell.isCorrect() ) {
+          const rowColumnSpan= RowColumnNumberSpan.findFromTileCoords(this.rowNumberCells, this.columnNumberCells, x, y);
+          rowColumnSpan.forEach( cell => cell.setError(true) );
+  
+          return true;
+        }
+      });
+    }
 
     if(!this.currentlyHighlightsErrors) {
       this.handleWinState();
@@ -949,6 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const redoButton= document.getElementById('redo-button');
   const squareFieldsCheckbox= document.getElementById('square-fields-checkbox');
   const enableDrawingCheckbox= document.getElementById('enable-drawing-checkbox');
+  const alternativeSolutionsCheckbox= document.getElementById('alternative-solutions-checkbox')
   const badLinkDialog= document.getElementById('bad-link-dialog');
 
   function updateButtons() {
@@ -991,6 +1081,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   enableDrawingCheckbox.addEventListener('change', () => {
     field.setDrawMode( enableDrawingCheckbox.checked );
+  });
+
+  alternativeSolutionsCheckbox.addEventListener('change', () => {
+    field.allowAlternativeSolutions= alternativeSolutionsCheckbox.checked;
   });
 
   setupModal('reset-game', null, doReset => {
