@@ -459,16 +459,34 @@ class NumberCell extends Cell {
     this.segmentIdx= segIdx;
     this.valueIdx= valueIdx;
     this.numberValue= value;
+    this.hasError= false;
+    this.isHighlighted= false;
   }
 
-  draw(asError= false) {
-    if( asError ) {
+  draw() {
+    if( this.hasError ) {
       this.tableDataElement.style.color= 'red';
       this.setText( this.numberValue === 0 ? '!' : `${this.numberValue}`);
     } else {
       this.tableDataElement.style.color= '';
       this.setText( this.numberValue === 0 ? '' : `${this.numberValue}`);
     }
+
+    if( this.isHighlighted ) {
+      this.tableDataElement.style.background= 'darkseagreen';
+    } else {
+      this.tableDataElement.style.background= '';
+    }
+  }
+
+  setError(enable) {
+    this.hasError= enable;
+    this.draw();
+  }
+
+  setHighlighting(enable) {
+    this.isHighlighted= enable;
+    this.draw();
   }
 }
 
@@ -582,6 +600,7 @@ class PlayField {
     this.currentlyHighlightsErrors= false;
     this.squaredMode= false;
     this.enableDrawing= true;
+    this.lastRowColumnHighlight= null;
   }
 
   clear() {
@@ -596,6 +615,7 @@ class PlayField {
     this.mouseIsDown= false;
     this.historyStack.clear();
     this.currentlyHighlightsErrors= false;
+    this.lastRowColumnHighlight= null;
   }
 
   initWithSettings(settings) {
@@ -746,20 +766,28 @@ class PlayField {
       this.handlePointerMove( e );
     }), {passive: true})
 
+    table.addEventListener('pointerleave', e => {
+      this.handlePointerLeave(e);
+    })
+
     table.addEventListener('click', e => {
       this.handlePointerClick( e );
     });
   }
 
   handlePointerDown( e ) {
+    const elem= document.elementFromPoint(e.clientX, e.clientY);
+
     if( this.enableDrawing ) {
       e.preventDefault();
       this.mouseIsDown= true;
       if( !this.showSolution ) {
-        this.historyStack.beginAction().changeCellByPointerEvent(e);
+        this.historyStack.beginAction().changeCellByElement( elem );
         this.redrawNumberCellsIfNecessary();
       }
     }
+
+    this.updateRowColumnHighlightByElement( elem );
   }
 
   handlePointerUp() {
@@ -777,7 +805,12 @@ class PlayField {
     if( this.enableDrawing && this.mouseIsDown && !this.showSolution) {
       this.historyStack.currentAction().changeCellByElement( elem );
     }
-    }
+
+    this.updateRowColumnHighlightByElement( elem );
+  }
+
+  handlePointerLeave( e ) {
+    this.updateRowColumnHighlightByElement( null );
   }
 
   handlePointerClick( e ) {
@@ -789,6 +822,22 @@ class PlayField {
     }
   }
 
+  updateRowColumnHighlightByElement( elem ) {
+    if( this.lastRowColumnHighlight ) {
+      this.lastRowColumnHighlight.forEach( cell => cell.setHighlighting(false) );
+      this.lastRowColumnHighlight= null;
+    }
+
+    if( !elem || !(elem.cellObject instanceof TileCell) ) {
+      return;
+    }
+
+    const tileCell= elem.cellObject;
+    const rowColumnSpan= RowColumnNumberSpan.findFromTileCoords(this.rowNumberCells, this.columnNumberCells, tileCell.tileX, tileCell.tileY);
+    rowColumnSpan.forEach( cell => cell.setHighlighting(true) );
+    this.lastRowColumnHighlight= rowColumnSpan;
+  }
+
   isCorrect() {
     return !this.forEachCell( cell => !cell.isCorrect());
   }
@@ -797,7 +846,7 @@ class PlayField {
     this.currentlyHighlightsErrors= this.forEachCell( (cell, x, y) => {
       if( !cell.isCorrect() ) {
         const rowColumnSpan= RowColumnNumberSpan.findFromTileCoords(this.rowNumberCells, this.columnNumberCells, x, y);
-        rowColumnSpan.forEach( cell => cell.draw(true) );
+        rowColumnSpan.forEach( cell => cell.setError(true) );
 
         return true;
       }
@@ -820,8 +869,8 @@ class PlayField {
 
   redrawNumberCellsIfNecessary() {
     if(this.currentlyHighlightsErrors) {
-      this.rowNumberCells.forEach( cell => cell.draw() );
-      this.columnNumberCells.forEach( cell => cell.draw() );
+      this.rowNumberCells.forEach( cell => cell.setError(false) );
+      this.columnNumberCells.forEach( cell => cell.setError(false) );
 
       this.currentlyHighlightsErrors= false;
     }
