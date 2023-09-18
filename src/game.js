@@ -591,11 +591,11 @@ class CellCounter {
   }
 
   forEach( func ) {
-    this.values.forEach((segment, segmentIdx) => {
-      segment.forEach((value, valueIdx) => {
+    return this.values.some((segment, segmentIdx) => {
+      return segment.some((value, valueIdx) => {
         const offset= this.maxSegmentLength- segment.length;
         const paddedIdx= valueIdx+ offset;
-        func( segmentIdx, valueIdx, paddedIdx, value );
+        return func( segmentIdx, valueIdx, paddedIdx, value );
       })
     });
   }
@@ -861,56 +861,66 @@ class PlayField {
   }
 
   findBadNumberCellSpan() {
-    try {
-      let readIdx= 0;
-      let counter= new CellCounter(1);
-      for(let x= 0; x!== this.width; x++) {
+    const checkSegments= (numSegments, segmentLength, switchAxis, numberCells, func) => {
+      // Go through all segments and validate each
+      let readIdx= 0, prevBeginSegmentIdx= 0;
+      const counter= new CellCounter(1);
+      for(let i= 0; i!== numSegments; i++) {
+        // Insert all cells of the segment to build the cell counter
         counter.clear();
         counter.insertSegment();
-        for(let y= 0; y !== this.height; y++) {
-          counter.insertCell(this.cells[x][y], false);
+        for(let j= 0; j !== segmentLength; j++) {
+          counter.insertCell( switchAxis ? this.cells[j][i] : this.cells[i][j], false);
         }
+
+        // Check if all the counted blocks match the ones in the sorted number cells array
         const beginSegmentIdx= readIdx;
+        let errorSpan= null;
         counter.forEach((segmentIdx, valueIdx, paddedIdx, value) => {
-          if( readIdx >= this.columnNumberCells.length ) {
-            throw new RowColumnNumberSpan(null, this.columnNumberCells, 0, beginSegmentIdx );
+          // Too many blocks overall
+          if( readIdx >= numberCells.length ) {
+            return errorSpan= func(beginSegmentIdx);
           }
-          const cell= this.columnNumberCells[readIdx];
-          if( cell.segmentIdx !== x || cell.valueIdx !== valueIdx || cell.numberValue !== value ) {
-            throw new RowColumnNumberSpan(null, this.columnNumberCells, 0, beginSegmentIdx );
+          // Too little blocks in the previous segment -> the number cell is still
+          // at a lower index than the current index
+          const cell= numberCells[readIdx];
+          if( cell.segmentIdx < i ) {
+            return errorSpan= func(prevBeginSegmentIdx);
+          }
+          // All the rest
+          if( cell.segmentIdx > i || cell.valueIdx !== valueIdx || cell.numberValue !== value ) {
+            return errorSpan= func(beginSegmentIdx);
           }
           readIdx++;
+          return null;
         });
-      }
 
-      readIdx= 0;
-      for(let y= 0; y!== this.height; y++) {
-        counter.clear();
-        counter.insertSegment();
-        for(let x= 0; x !== this.width; x++) {
-          counter.insertCell(this.cells[x][y], false);
+        if( errorSpan ) {
+          return errorSpan;
         }
-        const beginSegmentIdx= readIdx;
-        counter.forEach((segmentIdx, valueIdx, paddedIdx, value) => {
-          if( readIdx >= this.rowNumberCells.length ) {
-            throw new RowColumnNumberSpan(this.rowNumberCells, null, beginSegmentIdx, 0 );
-          }
-          const cell= this.rowNumberCells[readIdx];
-          if( cell.segmentIdx !== y || cell.valueIdx !== valueIdx || cell.numberValue !== value ) {
-            throw new RowColumnNumberSpan(this.rowNumberCells, null, beginSegmentIdx, 0 );
-          }
-          readIdx++;
-        });
+        prevBeginSegmentIdx= beginSegmentIdx;
       }
-    } catch( e ) {
-      if( e instanceof RowColumnNumberSpan ) {
-        return e;
-      }
+      return null;
+    };
 
-      throw e;
+    // Check all the columns
+    let errorSpan= checkSegments(
+      this.width, this.height, false, this.columnNumberCells,
+      beginSegmentIdx => new RowColumnNumberSpan(null, this.columnNumberCells, 0, beginSegmentIdx )
+    );
+
+    if( errorSpan ) {
+      return errorSpan
     }
 
-    return null;
+    // Check all the rows
+    errorSpan= checkSegments(
+      this.height, this.width, true, this.rowNumberCells,
+      beginSegmentIdx => new RowColumnNumberSpan(this.rowNumberCells, null, beginSegmentIdx, 0 )
+    );
+
+
+    return errorSpan;
   }
 
   isCorrect() {
