@@ -109,14 +109,15 @@ class SFC32 {
 }
 
 class GameSettings {
-  constructor(width, height, seed) {
+  constructor(width, height, fillRate, seed) {
     this.width= width;
     this.height= height;
+    this.fillRate= fillRate;
     this.seed= seed;
     this.serialized= null;
   }
 
-  static withRandomSeed(width, height) {
+  static withRandomSeed(width, height, fillRate) {
     const seedArray= new Uint32Array(4);
     seedArray[0]= Math.floor(Math.random()* 4294967296);
     seedArray[1]= Math.floor(Math.random()* 4294967296);
@@ -124,7 +125,7 @@ class GameSettings {
     seedArray[3]= Math.floor(Math.random()* 4294967296);
     const seedString= arrayBufferToBase64( seedArray.buffer );
 
-    return new GameSettings(width, height, seedString);
+    return new GameSettings(width, height, fillRate, seedString);
   }
 
   static fromQueryParam() {
@@ -139,9 +140,11 @@ class GameSettings {
       const valid=
         typeof settings.width === 'number' &&
         typeof settings.height === 'number' &&
+        typeof settings.fillRate === 'number' &&
         typeof settings.seed === 'string' &&
         settings.width > 0 && settings.width <= 20 &&
         settings.height > 0 && settings.height <= 20 &&
+        settings.fillRate > 0.15 && settings.fillRate <= 0.85 &&
         settings.seed.length === 24;
 
       if( !valid ) {
@@ -151,6 +154,7 @@ class GameSettings {
       return new GameSettings(
         Math.floor(settings.width),
         Math.floor(settings.height),
+        settings.fillRate,
         settings.seed
       );
 
@@ -168,6 +172,7 @@ class GameSettings {
     return this.serialized= btoa(JSON.stringify({
       width: this.width,
       height: this.height,
+      fillRate: this.fillRate,
       seed: this.seed
     }));
   }
@@ -497,10 +502,10 @@ class NumberCell extends Cell {
 
 class TileCell extends Cell {
 
-  constructor( field, rnd ) {
+  constructor( field, rnd, fillRate ) {
     super( field );
     this.currentState= Cell.Empty;
-    this.shouldBeFilled= rnd.next() < 0.3;
+    this.shouldBeFilled= rnd.next() <= fillRate;
   }
 
   setElement(e) {
@@ -609,6 +614,7 @@ class PlayField {
     this.rootElement= rootElem;
     this.width= 0;
     this.height= 0;
+    this.fillRate= 0;
     this.numberOffsetX= 0;
     this.numberOffsetY= 0;
     this.seed= null;
@@ -644,6 +650,7 @@ class PlayField {
     this.clear();
     this.width= settings.width* 5;
     this.height= settings.height* 5;
+    this.fillRate= settings.fillRate;
     this.seed= settings.seed;
 
     const seedArray= new Uint32Array(base64ToArrayBuffer(this.seed));
@@ -701,7 +708,7 @@ class PlayField {
       this.cells[x]= new Array(this.height);
       columnCounter.insertSegment();
       for(let y= 0; y< this.height; y++) {
-        const cell= new TileCell( this, this.rand );
+        const cell= new TileCell( this, this.rand, this.fillRate );
         this.cells[x][y]= cell;
         columnCounter.insertCell( cell );
       }
@@ -1062,8 +1069,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   updateButtons();
 
-  function newRandomGame(width, height) {
-    const settings= GameSettings.withRandomSeed(width, height);
+  function newRandomGame(width, height, fillRate) {
+    const settings= GameSettings.withRandomSeed(width, height, fillRate);
     settings.replaceQueryParam();
     field.initWithSettings( settings );
     updateButtons();
@@ -1132,16 +1139,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   setupModal('new-game', (dialog, form) => {
+    function updateSlider() {
+      form.fillRate.parentNode.nextElementSibling.innerText= form.fillRate.value+ '%';
+    }
+
+    updateSlider();
+
     form.width.value= Math.max(1, Math.floor(field.width/5));
     form.height.value= Math.max(1, Math.floor(field.height/5));
+    form.width.onchange= form.height.onchange= () => {
+      const x= form.width.value* form.height.value;
+      form.fillRate.value= Math.max(Math.min(-0.0002827*x*x +0.2261*x+ 39.77, 85), 15);
+      updateSlider();
+    };
+    form.fillRate.oninput= updateSlider;
   }, settings => {
     if( settings ) {
-      newRandomGame(settings.width, settings.height);
+      newRandomGame(settings.width, settings.height, settings.fillRate/100);
     }
   });
 
   badLinkDialog.addEventListener('close', () => {
-    newRandomGame(1, 1);
+    newRandomGame(1, 1, 0.4);
     loadSettings();
   });
 
@@ -1154,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
       field.initWithSettings(settings);
     } else {
       console.log('Generate new settings:', settings);
-      newRandomGame(1, 1);
+      newRandomGame(1, 1, 0.4);
     }
     loadSettings();
   } catch( e ) {

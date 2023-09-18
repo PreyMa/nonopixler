@@ -13,20 +13,34 @@
       <form>
         <h2>Start new game</h2>
         <p>
-          Sizes are provided in blocks of 5×5 cells each.
+          Sizes are specified in blocks of 5×5 cells each.
         </p>
-        <p>
+        <div class="p">
           <label>
             Width:
             <input type="number" name="width" min="1" max="20" required>
           </label>
-        </p>
-        <p>
+        </div>
+        <div class="p">
           <label>
             Height:
             <input type="number" name="height" min="1" max="20" required>
           </label>
-        </p>
+        </div>
+        <div class="p">
+          <label>
+            Fill rate:
+            <div class="labled-slider">
+              <input type="range" name="fillRate" min="15" max="85" step="5" value="40" required>
+              <ul>
+                <li>15%</li>
+                <li>50%</li>
+                <li>85%</li>
+              </ul>
+            </div>
+            <span class="value"></span>
+          </label>
+        </div>
         <div>
           <button type="button" class="cancel">Cancel</button>
           <button type="submit">Start</button>
