@@ -1069,6 +1069,28 @@ document.addEventListener('DOMContentLoaded', () => {
     updateButtons();
   }
 
+  function loadSettings() {
+    const settingsString= localStorage.getItem('settings');
+    if( settingsString ) {
+      try {
+        const settings= JSON.parse(settingsString);
+        field.setSquaredMode( squareFieldsCheckbox.checked= !!settings.squareFields );
+        field.setDrawMode( enableDrawingCheckbox.checked= !!settings.enableDrawing );
+        field.allowAlternativeSolutions= alternativeSolutionsCheckbox.checked= !!settings.alternativeSolutions;
+      } catch( e ) {
+        console.error('Could not parse settings:', e);
+      }
+    }
+  }
+
+  function saveSettings() {
+    localStorage.setItem('settings', JSON.stringify({
+      squareFields: squareFieldsCheckbox.checked,
+      enableDrawing: enableDrawingCheckbox.checked,
+      alternativeSolutions: alternativeSolutionsCheckbox.checked
+    }));
+  }
+
   solutionButton.addEventListener('click', e => {
     field.toggleSolution();
     updateButtons();
@@ -1090,14 +1112,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   squareFieldsCheckbox.addEventListener('change', () => {
     field.setSquaredMode( squareFieldsCheckbox.checked );
+    saveSettings();
   });
 
   enableDrawingCheckbox.addEventListener('change', () => {
     field.setDrawMode( enableDrawingCheckbox.checked );
+    saveSettings();
   });
 
   alternativeSolutionsCheckbox.addEventListener('change', () => {
     field.allowAlternativeSolutions= alternativeSolutionsCheckbox.checked;
+    saveSettings();
   });
 
   setupModal('reset-game', null, doReset => {
@@ -1117,6 +1142,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   badLinkDialog.addEventListener('close', () => {
     newRandomGame(1, 1);
+    loadSettings();
   });
 
   field.onWinState= () => winDialog.showModal();
@@ -1130,6 +1156,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('Generate new settings:', settings);
       newRandomGame(1, 1);
     }
+    loadSettings();
   } catch( e ) {
     document.getElementById('bad-link-dialog-message').innerText= (e === 'validationError')
       ? 'The URL is missing data. Maybe it is too old.'
