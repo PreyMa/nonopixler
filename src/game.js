@@ -963,7 +963,9 @@ class PlayField {
   }
 
   handleWinState() {
-    alert('You solved it');
+    if( this.onWinState ) {
+      this.onWinState();
+    }
   }
 
   redrawNumberCellsIfNecessary() {
@@ -1050,6 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const enableDrawingCheckbox= document.getElementById('enable-drawing-checkbox');
   const alternativeSolutionsCheckbox= document.getElementById('alternative-solutions-checkbox')
   const badLinkDialog= document.getElementById('bad-link-dialog');
+  const winDialog= document.getElementById('win-dialog');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -1115,6 +1118,8 @@ document.addEventListener('DOMContentLoaded', () => {
   badLinkDialog.addEventListener('close', () => {
     newRandomGame(1, 1);
   });
+
+  field.onWinState= () => winDialog.showModal();
 
   try {
     const settings= GameSettings.fromQueryParam();
