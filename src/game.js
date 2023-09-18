@@ -230,6 +230,34 @@ class HistoryAction {
     this.newState= Cell.Empty;
   }
 
+  toJson() {
+    const cellUpdates= new Array(this.cellUpdates.length);
+    this.cellUpdates.forEach( (update, i) => {
+      cellUpdates[i]= {
+        cellX: update.cell.tileX,
+        cellY: update.cell.tileY,
+        oldState: update.oldState
+      };
+    });
+    return {
+      cellUpdates,
+      newState: this.newState
+    };
+  }
+
+  loadJson( data, field ) {
+    assert(Array.isArray(data.cellUpdates) && typeof data.newState === 'number');
+    this.newState= data.newState;
+    this.cellUpdates= new Array(data.cellUpdates.length);
+    data.cellUpdates.forEach( (update, idx) => {
+      assert(update.cellX < field.width && update.cellY < field.height);
+      this.cellUpdates[idx]= {
+        cell: field.cells[update.cellX][update.cellY],
+        oldState: update.oldState
+      };
+    });
+  }
+
   changeCellByPointerEvent( event ) {
     return this.changeCellByElement( document.elementFromPoint(event.clientX, event.clientY) )
   }
@@ -322,6 +350,42 @@ class HistoryStack extends EventTarget {
     this._emitEvent('clear', null);
   }
 
+  toJson() {
+    const actions= [];
+    let currentActionIndex= -1;
+    let action= this._firstAction;
+    while(action) {
+      actions.push(action.toJson());
+      if( action == this._currentAction ) {
+        currentActionIndex= actions.length-1;
+      }
+      action= action.nextAction;
+    }
+    return {
+      actions,
+      currentActionIndex
+    };
+  }
+
+  loadJson( data, field ) {
+    assert(Array.isArray(data.actions) && typeof data.currentActionIndex === 'number');
+
+    let currentActionRef= null;
+
+    this.clear();
+    data.actions.forEach( (actionData, idx) => {
+      const action= this.beginAction();
+      action.loadJson(actionData, field);
+
+      if( idx === data.currentActionIndex ) {
+        currentActionRef= action;
+      }
+    });
+
+    this._currentAction= currentActionRef;
+    this._emitEvent('loaded', currentActionRef);
+  }
+
   _emitEvent(type, action) {
     this.dispatchEvent( new CustomEvent('action', {detail: {type, action}}) );
   }
@@ -360,6 +424,10 @@ class HistoryStack extends EventTarget {
     }
 
     return this._lastAction;
+  }
+
+  hasHistory() {
+    return !!this._firstAction;
   }
 
   canUndo() {
@@ -617,7 +685,7 @@ class PlayField {
     this.fillRate= 0;
     this.numberOffsetX= 0;
     this.numberOffsetY= 0;
-    this.seed= null;
+    this.settings= null;
     this.rand= null;
     this.showSolution= false;
     this.mouseIsDown= false;
@@ -636,7 +704,7 @@ class PlayField {
     this.columnNumberCells= null;
     this.numberOffsetX= 0;
     this.numberOffsetY= 0;
-    this.seed= null;
+    this.settings= null;
     this.rand= null;
     this.showSolution= false;
     this.mouseIsDown= false;
@@ -651,16 +719,45 @@ class PlayField {
     this.width= settings.width* 5;
     this.height= settings.height* 5;
     this.fillRate= settings.fillRate;
-    this.seed= settings.seed;
+    this.settings= settings;
 
-    const seedArray= new Uint32Array(base64ToArrayBuffer(this.seed));
+    const seedArray= new Uint32Array(base64ToArrayBuffer(settings.seed));
     this.rand= new SFC32([...seedArray]);
 
     this.buildField();
   }
 
   reset() {
-    this.initWithSettings(new GameSettings(this.width/5, this.height/5, this.seed));
+    this.initWithSettings(this.settings);
+  }
+
+  toJson() {
+    if(!this.historyStack.hasHistory()) {
+      return null;
+    }
+
+    const currentState= new Array(this.width*this.height);
+    for(let x= 0; x< this.width; x++) {
+      for(let y= 0; y< this.height; y++) {
+        currentState[x+ y*this.height]= this.cells[x][y].currentState;
+      }
+    }
+
+    return {
+      currentState,
+      history: this.historyStack.toJson(),
+      saveTime: new Date().toISOString()
+    }
+  }
+
+  loadJson( data ) {
+    assert(data.currentState && data.history);
+    assert(data.currentState.length === this.width*this.height);
+
+    this.historyStack.loadJson(data.history, this);
+    this.forEachCell((cell, x, y) => {
+      cell.setState( data.currentState[x+ y*this.height] );
+    });
   }
 
   /**
@@ -967,6 +1064,10 @@ class PlayField {
     if( !this.showSolution && this.isCorrect() ) {
       this.handleWinState();
     }
+
+    if(this.onUpdate) {
+      this.onUpdate();
+    }
   }
 
   handleWinState() {
@@ -1165,12 +1266,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   field.onWinState= () => winDialog.showModal();
+  field.onUpdate= () => {
+    const entry= field.toJson();
+    if( entry ) {
+      localStorage.setItem(field.settings.serialize(), JSON.stringify(entry));
+    }
+  };
 
   try {
     const settings= GameSettings.fromQueryParam();
     if( settings ) {
       console.log('Settings from query params:', settings);
       field.initWithSettings(settings);
+
+      try {
+        const entry= localStorage.getItem(settings.serialize());
+        if( entry ) {
+          field.loadJson(JSON.parse(entry));
+        }
+      } catch( e ) {
+        console.error('Could not load saved game:', e);
+        field.reset();
+      }
+
     } else {
       console.log('Generate new settings:', settings);
       newRandomGame(1, 1, 0.4);
