@@ -100,6 +100,33 @@ function formatTime( date ) {
   return `${day} ${date.getHours()}:${(''+ date.getMinutes()).padStart(2, '0')}`;
 }
 
+function tryForEachSavedGame( func ) {
+  // Go through all keys in the local storage db
+  for(let i= 0; i!== localStorage.length; i++) {
+    // Ignore the 'settings' key
+    const key= localStorage.key( i );
+    if( key === 'settings' ) {
+      continue;
+    }
+
+    // Try to load the JSON or fail silently
+    try {
+      const jsonString= localStorage.getItem(key);
+      const jsonData= JSON.parse(jsonString);
+      assert( jsonData );
+
+      // Convert the ISO time into a UNIX timestamp for easier comparison
+      jsonData.timestamp= new Date(jsonData.saveTime).getTime();
+      jsonData.key= key;
+      func( jsonData );
+
+    } catch( e ) {
+      console.error('Could not parse json for saved game', key, e);
+      continue;
+    }
+  }
+}
+
 function base64ToArrayBuffer(base64) {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -177,6 +204,10 @@ class GameSettings {
       return null;
     }
 
+    return GameSettings.fromEncodedKey( encoded );
+  }
+
+  static fromEncodedKey( encoded ) {
     try {
       const settings= JSON.parse(atob(encoded));
       const valid=
@@ -765,7 +796,6 @@ class PlayField {
     this.fillRate= settings.fillRate;
     this.settings= settings;
 
-
     const seedArray= new Uint32Array(base64ToArrayBuffer(settings.seed));
     this.rand= new SFC32([...seedArray]);
 
@@ -1266,6 +1296,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function loadGameWithSettings( settings ) {
+    field.initWithSettings(settings);
+
+    try {
+      const entry= localStorage.getItem(settings.serialize());
+      if( entry ) {
+        field.loadJson(JSON.parse(entry));
+      }
+    } catch( e ) {
+      console.error('Could not load saved game:', e);
+      field.reset();
+      return false;
+    }
+    return true;
+  }
+
   solutionButton.addEventListener('click', e => {
     field.toggleSolution();
     updateButtons();
@@ -1345,28 +1391,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Go through all keys in the local storage db
-    for(let i= 0; i!== localStorage.length; i++) {
-      // Ignore the 'settings' key
-      const key= localStorage.key( i );
-      if( key === 'settings' ) {
-        continue;
-      }
-
-      // Try to load the JSON or fail silently
-      let jsonData;
-      try {
-        const jsonString= localStorage.getItem(key);
-        jsonData= JSON.parse(jsonString);
-        assert(jsonData);
-      } catch( e ) {
-        console.error('Could not parse json for saved game', key, e);
-        continue;
-      }
-      // Remove the actual game data, but convert the ISO time into a 
-      // UNIX timestamp for easier comparison
-      jsonData.history= jsonData.currentState= null;
-      jsonData.timestamp= new Date(jsonData.saveTime).getTime();
-
+    tryForEachSavedGame(jsonData => {
       // Find the correct insertion index by looking for the first entry 
       // that is older and inserting on top of it (displacing it one slot back)
       let rowIdx= 0;
@@ -1401,10 +1426,10 @@ document.addEventListener('DOMContentLoaded', () => {
       playButton.type= 'button';
       playButton.onclick= () => {
         const url= new URL(window.location);
-        url.searchParams.set('s', key);
+        url.searchParams.set('s', jsonData.key);
         window.location= url;
       };
-    }
+    });
     savedGamesDialog.showModal();
   });
 
@@ -1415,21 +1440,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings= GameSettings.fromQueryParam();
     if( settings ) {
       console.log('Settings from query params:', settings);
-      field.initWithSettings(settings);
-
-      try {
-        const entry= localStorage.getItem(settings.serialize());
-        if( entry ) {
-          field.loadJson(JSON.parse(entry));
-        }
-      } catch( e ) {
-        console.error('Could not load saved game:', e);
-        field.reset();
-      }
+      loadGameWithSettings( settings );
 
     } else {
-      console.log('Generate new settings:', settings);
-      newRandomGame(1, 1, 0.4);
+      let newestKey= null, newestTimestamp= 0;
+      tryForEachSavedGame(jsonData => {
+        if( newestTimestamp < jsonData.timestamp ) {
+          newestTimestamp= jsonData.timestamp;
+          newestKey= jsonData.key;
+        }
+      });
+
+      if( newestKey ) {
+        const settings= GameSettings.fromEncodedKey( newestKey );
+        settings.replaceQueryParam();
+        console.log('Settings from last game:', settings);
+        loadGameWithSettings( settings );
+
+      } else {
+        console.log('Generate new settings:', settings);
+        newRandomGame(1, 1, 0.4);
+      }    
     }
     loadSettings();
   } catch( e ) {
