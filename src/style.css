@@ -12,6 +12,7 @@ main details, main p, dialog div.p {
 .game table {
   border-collapse: collapse;
   table-layout: fixed;
+  margin-bottom: 1rem;
 }
 
 .game table.squared {

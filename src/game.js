@@ -765,7 +765,6 @@ class PlayField {
     this.fillRate= settings.fillRate;
     this.settings= settings;
 
-    this.name= `Game Nr. ${localStorage.length+ 1}`;
 
     const seedArray= new Uint32Array(base64ToArrayBuffer(settings.seed));
     this.rand= new SFC32([...seedArray]);
@@ -775,6 +774,11 @@ class PlayField {
 
   reset() {
     this.initWithSettings(this.settings);
+  }
+
+  setName( name ) {
+    this.name= name;
+    this.table.nextElementSibling.innerText= name;
   }
 
   toJson() {
@@ -789,6 +793,8 @@ class PlayField {
       }
     }
 
+    this.setName(this.name || `Game Nr. ${localStorage.length+ 1}`);
+
     return {
       currentState,
       name: this.name,
@@ -801,11 +807,12 @@ class PlayField {
     assert(data.currentState && data.history && data.name);
     assert(data.currentState.length === this.width*this.height);
 
-    this.name= data.name;
     this.historyStack.loadJson(data.history, this);
     this.forEachCell((cell, x, y) => {
       cell.setState( data.currentState[x+ y*this.height] );
     });
+
+    this.setName(data.name);
   }
 
   /**
@@ -919,6 +926,8 @@ class PlayField {
     }
     this.rootElement.appendChild(table);
     this.setSquaredMode(this.squaredMode);
+
+    this.rootElement.appendChild( document.createElement('div') ).innerText= this.name || 'Not saved yet';
 
     // Add events to detect when cells are colored in
     // Pointer down starts a new action on the history stack
