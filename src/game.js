@@ -58,6 +58,48 @@ function binaryFindFirst(array, value, compareFunc)
   return -1;
 }
 
+/**
+ * 
+ * @param {Date} a 
+ * @param {Date} b 
+ * @returns {boolean}
+ */
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+/**
+ * 
+ * @param {Date} date 
+ * @returns {string}
+ */
+function formatTime( date ) {
+  const weekDays= ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months= ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Nov', 'Dec'];
+  let day= '';
+  const today= new Date();
+  if( isSameDay(date, today) ) {
+    day= 'Today';
+  } else if( isSameDay(date, new Date(today.getTime() - 24*60*60*1000) ) ) {
+    day= 'Yesterday';
+  } else {
+    let ordinal= 'th';
+    const dayNum= date.getDate();
+    if(dayNum <= 3 || dayNum >= 21) {
+      switch (dayNum % 10) {
+        case 1:  ordinal= "st"; break;
+        case 2:  ordinal= "nd"; break;
+        case 3:  ordinal= "rd"; break;
+      }
+    }
+    day= `${weekDays[date.getDay()]} ${dayNum}${ordinal} ${months[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
+  return `${day} ${date.getHours()}:${(''+ date.getMinutes()).padStart(2, '0')}`;
+}
+
 function base64ToArrayBuffer(base64) {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -696,6 +738,7 @@ class PlayField {
     this.enableDrawing= true;
     this.lastRowColumnHighlight= null;
     this.allowAlternativeSolutions= false;
+    this.name= null;
   }
 
   clear() {
@@ -712,6 +755,7 @@ class PlayField {
     this.currentlyHighlightsErrors= false;
     this.lastRowColumnHighlight= null;
     this.allowAlternativeSolutions= false;
+    this.name= null;
   }
 
   initWithSettings(settings) {
@@ -720,6 +764,8 @@ class PlayField {
     this.height= settings.height* 5;
     this.fillRate= settings.fillRate;
     this.settings= settings;
+
+    this.name= `Game Nr. ${localStorage.length+ 1}`;
 
     const seedArray= new Uint32Array(base64ToArrayBuffer(settings.seed));
     this.rand= new SFC32([...seedArray]);
@@ -745,15 +791,17 @@ class PlayField {
 
     return {
       currentState,
+      name: this.name,
       history: this.historyStack.toJson(),
       saveTime: new Date().toISOString()
     }
   }
 
   loadJson( data ) {
-    assert(data.currentState && data.history);
+    assert(data.currentState && data.history && data.name);
     assert(data.currentState.length === this.width*this.height);
 
+    this.name= data.name;
     this.historyStack.loadJson(data.history, this);
     this.forEachCell((cell, x, y) => {
       cell.setState( data.currentState[x+ y*this.height] );
@@ -1161,6 +1209,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const alternativeSolutionsCheckbox= document.getElementById('alternative-solutions-checkbox')
   const badLinkDialog= document.getElementById('bad-link-dialog');
   const winDialog= document.getElementById('win-dialog');
+  const saveGameButton= document.getElementById('save-game-button');
+  const openSavedGamesButton= document.getElementById('open-saved-games-button');
+  const savedGamesDialog= document.getElementById('saved-games-dialog');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -1199,6 +1250,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
 
+  function saveGame() {
+    const entry= field.toJson();
+    if( entry ) {
+      localStorage.setItem(field.settings.serialize(), JSON.stringify(entry));
+    }
+  }
+
   solutionButton.addEventListener('click', e => {
     field.toggleSolution();
     updateButtons();
@@ -1233,6 +1291,10 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSettings();
   });
 
+  saveGameButton.addEventListener('click', () => {
+    saveGame();
+  });
+
   setupModal('reset-game', null, doReset => {
     if(doReset) {
       field.reset();
@@ -1265,13 +1327,77 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
   });
 
-  field.onWinState= () => winDialog.showModal();
-  field.onUpdate= () => {
-    const entry= field.toJson();
-    if( entry ) {
-      localStorage.setItem(field.settings.serialize(), JSON.stringify(entry));
+  openSavedGamesButton.addEventListener('click', () => {
+    // Render the table of saved games
+    // Clear table
+    const table= savedGamesDialog.querySelector('table');
+    while(table.rows.length > 1) {
+      table.deleteRow(1);
     }
-  };
+
+    // Go through all keys in the local storage db
+    for(let i= 0; i!== localStorage.length; i++) {
+      // Ignore the 'settings' key
+      const key= localStorage.key( i );
+      if( key === 'settings' ) {
+        continue;
+      }
+
+      // Try to load the JSON or fail silently
+      let jsonData;
+      try {
+        const jsonString= localStorage.getItem(key);
+        jsonData= JSON.parse(jsonString);
+        assert(jsonData);
+      } catch( e ) {
+        console.error('Could not parse json for saved game', key, e);
+        continue;
+      }
+      // Remove the actual game data, but convert the ISO time into a 
+      // UNIX timestamp for easier comparison
+      jsonData.history= jsonData.currentState= null;
+      jsonData.timestamp= new Date(jsonData.saveTime).getTime();
+
+      // Find the correct insertion index by looking for the first entry 
+      // that is older and inserting on top of it (displacing it one slot back)
+      let rowIdx= 0;
+      while( ++rowIdx < table.rows.length ) {
+        if( table.rows[rowIdx].jsonData.timestamp < jsonData.timestamp ) {
+          break;
+        }
+      }
+
+      const row= table.insertRow(rowIdx);
+      row.jsonData= jsonData;
+
+      // Create name input field that automatically saves changes
+      const nameInput= row.insertCell().appendChild( document.createElement('input') );
+      nameInput.type= 'text';
+      nameInput.value= jsonData.name;
+      nameInput.onchange= () => {
+        jsonData.name= nameInput.value;
+        localStorage.setItem(key, JSON.stringify(jsonData));
+      };
+
+      // Formatted time and date field
+      row.insertCell().innerText= formatTime(new Date(jsonData.saveTime));
+
+      // Play button
+      const buttons= row.insertCell();
+      const playButton= buttons.appendChild( document.createElement('button') );
+      playButton.innerText= 'Play';
+      playButton.type= 'button';
+      playButton.onclick= () => {
+        const url= new URL(window.location);
+        url.searchParams.set('s', key);
+        window.location= url;
+      };
+    }
+    savedGamesDialog.showModal();
+  });
+
+  field.onWinState= () => winDialog.showModal();
+  field.onUpdate= () => saveGame();
 
   try {
     const settings= GameSettings.fromQueryParam();

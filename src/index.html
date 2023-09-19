@@ -59,6 +59,23 @@
         </div>
       </form>
     </dialog>
+    <dialog id="saved-games-dialog">
+      <form>
+        <h2>Saved games</h2>
+        <p>
+          All the games saved when playing.
+        </p>
+        <table>
+          <tr>
+            <th>Name</th>
+            <th>Save time</th>
+          </tr>
+        </table>
+        <div>
+          <button formmethod="dialog">Close</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="bad-link-dialog">
       <form>
         <h2>Sorry, this URL is broken</h2>
@@ -81,6 +98,8 @@
       <p>
         <button id="new-game-button">New Game</button>
         <button id="reset-game-button">Reset Game</button>
+        <button id="save-game-button">Save Game</button>
+        <button id="open-saved-games-button">Load Game</button>
       </p>
       <p class="controls">
         <button id="solution-button">Show solution</button>

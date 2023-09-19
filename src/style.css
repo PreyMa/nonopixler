@@ -100,3 +100,11 @@ div.labled-slider ul {
   padding: 0;
   margin: 0;
 }
+
+#saved-games-dialog td {
+  padding: 0.5rem 1rem;
+}
+
+#saved-games-dialog td input {
+  width: 7rem;
+}
