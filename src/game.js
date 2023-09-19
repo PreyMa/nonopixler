@@ -1385,7 +1385,10 @@ document.addEventListener('DOMContentLoaded', () => {
       nameInput.value= jsonData.name;
       nameInput.onchange= () => {
         jsonData.name= nameInput.value;
-        localStorage.setItem(key, JSON.stringify(jsonData));
+        localStorage.setItem(jsonData.key, JSON.stringify(jsonData));
+        if( jsonData.key === field.settings.serialize() ) {
+          field.setName(jsonData.name);
+        }
       };
 
       // Formatted time and date field
