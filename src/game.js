@@ -882,6 +882,15 @@ class PlayField {
     this.table.classList.toggle('no-draw', !enable);
   }
 
+  setJustify( mode ) {
+    const modes= ['left', 'center', 'right']
+    if( modes.indexOf(mode) < 0 ) { 
+      return;
+    }
+
+    modes.forEach(m => this.rootElement.classList.toggle(m, m === mode));
+  }
+
   buildField() {
     const columnCounter= new CellCounter(this.width);
 
@@ -1251,6 +1260,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveGameButton= document.getElementById('save-game-button');
   const openSavedGamesButton= document.getElementById('open-saved-games-button');
   const savedGamesDialog= document.getElementById('saved-games-dialog');
+  const fieldJustifySelect= document.getElementById('field-justify-select');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -1275,6 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         field.setSquaredMode( squareFieldsCheckbox.checked= !!settings.squareFields );
         field.setDrawMode( enableDrawingCheckbox.checked= !!settings.enableDrawing );
         field.allowAlternativeSolutions= alternativeSolutionsCheckbox.checked= !!settings.alternativeSolutions;
+        field.setJustify( fieldJustifySelect.value= settings.fieldJustify || 'center' );
       } catch( e ) {
         console.error('Could not parse settings:', e);
       }
@@ -1285,7 +1296,8 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('settings', JSON.stringify({
       squareFields: squareFieldsCheckbox.checked,
       enableDrawing: enableDrawingCheckbox.checked,
-      alternativeSolutions: alternativeSolutionsCheckbox.checked
+      alternativeSolutions: alternativeSolutionsCheckbox.checked,
+      fieldJustify: fieldJustifySelect.value
     }));
   }
 
@@ -1343,6 +1355,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   alternativeSolutionsCheckbox.addEventListener('change', () => {
     field.allowAlternativeSolutions= alternativeSolutionsCheckbox.checked;
+    saveSettings();
+  });
+
+  fieldJustifySelect.addEventListener('change', () => {
+    field.setJustify( fieldJustifySelect.value );
     saveSettings();
   });
 

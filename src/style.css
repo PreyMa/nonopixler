@@ -9,6 +9,22 @@ main details, main p, dialog div.p {
   margin: 1em 0;
 }
 
+.game-container {
+  display: flex;
+}
+
+.game.left {
+  margin-right: auto;
+}
+
+.game.center {
+  margin: 0 auto;
+}
+
+.game.right {
+  margin-left: auto;
+}
+
 .game table {
   border-collapse: collapse;
   table-layout: fixed;
