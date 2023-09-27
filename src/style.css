@@ -9,6 +9,10 @@ main details, main p, dialog div.p {
   margin: 1em 0;
 }
 
+details label {
+  line-height: 2rem;
+}
+
 .game-container {
   display: flex;
 }
