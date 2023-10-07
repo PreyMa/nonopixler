@@ -1,6 +1,6 @@
 # Nonopixler
 
-[Nonogram](https://en.wikipedia.org/wiki/Nonogram) game written in plain vanilla JS. You can play [here](nuggets.egimoto.com).
+[Nonogram](https://en.wikipedia.org/wiki/Nonogram) game written in plain vanilla JS. You can play [here](https://www.nuggets.egimoto.com/nonopixler).
 
 ## 🕹️ How to play
 The game is played on a field made up from many square tiles similar to sudoku. But instead of filling each tile with a digit you have to figure out whether each tile needs to be colored in or remain blank. Next to the rows and columns are numbers that serve as hints how many tiles need to be colored in succession to form a block. Rows and columns are interpreted separately, and two blocks may not touch directly.
