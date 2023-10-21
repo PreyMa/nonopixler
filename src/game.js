@@ -785,7 +785,6 @@ class PlayField {
     this.historyStack.clear();
     this.currentlyHighlightsErrors= false;
     this.lastRowColumnHighlight= null;
-    this.allowAlternativeSolutions= false;
     this.name= null;
   }
 
