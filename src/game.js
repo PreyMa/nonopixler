@@ -1204,6 +1204,7 @@ class GameClock {
 
     this.seconds= seconds;
     this.referenceTimestamp= Date.now()- 1000*seconds;
+    this.stopped= false;
     this.draw();
     this.persist();
   }
@@ -1345,6 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
     redoButton.disabled= field.showSolution || !field.historyStack.canRedo();
     solutionButton.innerText= field.showSolution ? 'Hide solution' : 'Show solution';
+    startStopClockButton.innerText= clock.stopped ? '▶' : '| |';
   }
 
   updateButtons();
@@ -1456,7 +1458,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   startStopClockButton.addEventListener('click', () => {
     clock.stop(!clock.stopped);
-    startStopClockButton.innerText= clock.stopped ? '▶' : '| |';
+    updateButtons();
   });
 
   clockHideSecondsCheckbox.addEventListener('change', () => {
