@@ -96,34 +96,36 @@
     </dialog>
     <section>
       <p>
-        <button id="new-game-button">New Game</button>
-        <button id="reset-game-button">Reset Game</button>
-        <button id="save-game-button">Save Game</button>
-        <button id="open-saved-games-button">Load Game</button>
+        <button id="new-game-button" title="Start a new game">New Game</button>
+        <button id="reset-game-button" title="Clear the game field">Reset Game</button>
+        <button id="save-game-button" title="Save the current game">Save Game</button>
+        <button id="open-saved-games-button" title="Select a game to load">Load Game</button>
       </p>
       <p class="controls">
-        <button id="solution-button">Show solution</button>
-        <button id="check-button">Check</button>
-        <button id="undo-button">←</button>
-        <button id="redo-button">→</button>
+        <button id="solution-button" title="Superimpose the solution">Show solution</button>
+        <button id="check-button" title="Check if the game is solved">Check</button>
+        <button id="undo-button" title="Undo">←</button>
+        <button id="redo-button" title="Redo">→</button>
+      </p>
+    </section>
       </p>
     </section>
     <section>
         <details>
           <summary>More Settings</summary>
-          <label>
+          <label title="Force the fields to be square and enable scrolling">
             Force square fields:
             <input type="checkbox" id="square-fields-checkbox">
           </label>
-          <label>
+          <label title="Allows holding and dragging with the mouse to select multiple fields">
             Enable drawing:
             <input type="checkbox" id="enable-drawing-checkbox" checked>
           </label>
-          <label>
+          <label title="Let the game detect any correct solution as a win state">
             Allow alternative solutions:
             <input type="checkbox" id="alternative-solutions-checkbox">
           </label>
-          <label>
+          <label title="Select where to show the game field on screen">
             Game field position:
             <select id="field-justify-select">
               <option value="left" title="Left">👈</option>
