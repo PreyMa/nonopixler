@@ -105,7 +105,7 @@ function tryForEachSavedGame( func ) {
   for(let i= 0; i!== localStorage.length; i++) {
     // Ignore the 'settings' key
     const key= localStorage.key( i );
-    if( key === 'settings' ) {
+    if( key === 'settings' || key.endsWith('-clock') ) {
       continue;
     }
 
@@ -1182,6 +1182,74 @@ class PlayField {
   }
 }
 
+class GameClock {
+  constructor( element ) {
+    this.element= element;
+    this.updateCounter= 0;
+    this.key= null;
+    this.stopped= false;
+    this.reset();
+
+    setInterval(() => this.update(), 500);
+  }
+
+  loadTimeFromSettings( settings ) {
+    this.key= settings.serialize()+ '-clock';
+
+    const storedText= localStorage.getItem( this.key );
+    let seconds= parseInt(storedText, 16);
+    if( Number.isNaN(seconds) ) {
+      seconds= 0;
+    }
+
+    this.seconds= seconds;
+    this.referenceTimestamp= Date.now()- 1000*seconds;
+    this.draw();
+    this.persist();
+  }
+
+  reset() {
+    this.seconds= 0;
+    this.referenceTimestamp= Date.now();
+    this.draw();
+    this.persist();
+  }
+
+  stop(doStop= true) {
+    this.stopped= doStop;
+  }
+
+  update() {
+    if( this.stopped ) {
+      return;
+    }
+
+    this.seconds= Math.floor((Date.now()-this.referenceTimestamp)/1000);
+    this.draw();
+  }
+
+  draw() {
+    const minutes= Math.floor(this.seconds / 60);
+    const seconds= this.seconds- minutes* 60;
+    const secondsString= `${seconds}`.padStart(2, '0');
+
+    this.element.innerText= `${minutes}:${secondsString}`;
+
+    this.updateCounter++;
+    if( (this.updateCounter > 3) && this.key ) {
+      this.updateCounter= 0;
+
+      this.persist();
+    }
+  }
+
+  persist() {
+    if( this.key ) {
+      localStorage.setItem(this.key, this.seconds.toString(16));
+    }
+  }
+}
+
 function setupModal( name, setupFunc, handlerFunc ) {
   const openButton= document.getElementById(name+ '-button');
   const dialog= document.getElementById(name+ '-dialog');
@@ -1248,6 +1316,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const gameElement= document.querySelector('.game');
   const field= new PlayField(gameElement);
 
+  const clockElement= document.getElementById('clock-display');
+  const clock= new GameClock( clockElement );
+
   const solutionButton= document.getElementById('solution-button');
   const checkButton= document.getElementById('check-button');
   const undoButton= document.getElementById('undo-button');
@@ -1261,6 +1332,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const openSavedGamesButton= document.getElementById('open-saved-games-button');
   const savedGamesDialog= document.getElementById('saved-games-dialog');
   const fieldJustifySelect= document.getElementById('field-justify-select');
+  const resetClockButton= document.getElementById('reset-clock-button');
+  const startStopClockButton= document.getElementById('start-stop-clock-button');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -1274,6 +1347,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settings= GameSettings.withRandomSeed(width, height, fillRate);
     settings.replaceQueryParam();
     field.initWithSettings( settings );
+    clock.loadTimeFromSettings( settings );
     updateButtons();
   }
 
@@ -1310,6 +1384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function loadGameWithSettings( settings ) {
     field.initWithSettings(settings);
+    clock.loadTimeFromSettings(settings);
 
     try {
       const entry= localStorage.getItem(settings.serialize());
@@ -1365,6 +1440,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   saveGameButton.addEventListener('click', () => {
     saveGame();
+  });
+
+  resetClockButton.addEventListener('click', () => {
+    clock.reset();
+  });
+
+  startStopClockButton.addEventListener('click', () => {
+    clock.stop(!clock.stopped);
+    startStopClockButton.innerText= clock.stopped ? '▶' : '| |';
   });
 
   setupModal('reset-game', null, doReset => {
