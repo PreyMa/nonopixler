@@ -1188,6 +1188,7 @@ class GameClock {
     this.updateCounter= 0;
     this.key= null;
     this.stopped= false;
+    this.showSeconds= true;
     this.reset();
 
     setInterval(() => this.update(), 500);
@@ -1219,6 +1220,11 @@ class GameClock {
     this.stopped= doStop;
   }
 
+  hideSeconds(doHide= false) {
+    this.showSeconds= !doHide;
+    this.draw();
+  }
+
   update() {
     if( this.stopped ) {
       return;
@@ -1231,9 +1237,9 @@ class GameClock {
   draw() {
     const minutes= Math.floor(this.seconds / 60);
     const seconds= this.seconds- minutes* 60;
-    const secondsString= `${seconds}`.padStart(2, '0');
+    const secondsString= this.showSeconds ? (':'+ `${seconds}`.padStart(2, '0')) : 'min';
 
-    this.element.innerText= `${minutes}:${secondsString}`;
+    this.element.innerText= `${minutes}${secondsString}`;
 
     this.updateCounter++;
     if( (this.updateCounter > 3) && this.key ) {
@@ -1334,6 +1340,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const fieldJustifySelect= document.getElementById('field-justify-select');
   const resetClockButton= document.getElementById('reset-clock-button');
   const startStopClockButton= document.getElementById('start-stop-clock-button');
+  const clockHideSecondsCheckbox= document.getElementById('clock-hide-seconds-checkbox');
 
   function updateButtons() {
     undoButton.disabled= field.showSolution || !field.historyStack.canUndo();
@@ -1360,6 +1367,7 @@ document.addEventListener('DOMContentLoaded', () => {
         field.setDrawMode( enableDrawingCheckbox.checked= !!settings.enableDrawing );
         field.allowAlternativeSolutions= alternativeSolutionsCheckbox.checked= !!settings.alternativeSolutions;
         field.setJustify( fieldJustifySelect.value= settings.fieldJustify || 'center' );
+        clock.hideSeconds( clockHideSecondsCheckbox.checked= !!settings.hideSeconds );
       } catch( e ) {
         console.error('Could not parse settings:', e);
       }
@@ -1371,7 +1379,8 @@ document.addEventListener('DOMContentLoaded', () => {
       squareFields: squareFieldsCheckbox.checked,
       enableDrawing: enableDrawingCheckbox.checked,
       alternativeSolutions: alternativeSolutionsCheckbox.checked,
-      fieldJustify: fieldJustifySelect.value
+      fieldJustify: fieldJustifySelect.value,
+      hideSeconds: clockHideSecondsCheckbox.checked
     }));
   }
 
@@ -1449,6 +1458,11 @@ document.addEventListener('DOMContentLoaded', () => {
   startStopClockButton.addEventListener('click', () => {
     clock.stop(!clock.stopped);
     startStopClockButton.innerText= clock.stopped ? '▶' : '| |';
+  });
+
+  clockHideSecondsCheckbox.addEventListener('change', () => {
+    clock.hideSeconds( clockHideSecondsCheckbox.checked );
+    saveSettings();
   });
 
   setupModal('reset-game', null, doReset => {
