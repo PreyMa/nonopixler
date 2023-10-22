@@ -1578,7 +1578,8 @@ document.addEventListener('DOMContentLoaded', () => {
     clock.stop();
     clock.persist();
     document.getElementById('win-time-field').innerText= clock.formatTime();
-    winDialog.showModal()
+    winDialog.showModal();
+    updateButtons();
   };
 
   try {
