@@ -762,6 +762,7 @@ class PlayField {
     this.rand= null;
     this.showSolution= false;
     this.mouseIsDown= false;
+    this.mouseIsInside= false;
     this.historyStack= new HistoryStack();
     this.didRegisterWindowEvent= false;
     this.currentlyHighlightsErrors= false;
@@ -782,6 +783,7 @@ class PlayField {
     this.rand= null;
     this.showSolution= false;
     this.mouseIsDown= false;
+    this.mouseIsInside= false;
     this.historyStack.clear();
     this.currentlyHighlightsErrors= false;
     this.lastRowColumnHighlight= null;
@@ -985,11 +987,15 @@ class PlayField {
     // active history action
     table.addEventListener('pointermove', debounce(e => {
       this.handlePointerMove( e );
-    }), {passive: true})
+    }), {passive: true});
+
+    table.addEventListener('pointerenter', e => {
+      this.handlePointerEnter(e);
+    }, {passive: true});
 
     table.addEventListener('pointerleave', e => {
       this.handlePointerLeave(e);
-    })
+    }, {passive: true});
 
     table.addEventListener('click', e => {
       this.handlePointerClick( e );
@@ -997,6 +1003,10 @@ class PlayField {
   }
 
   handlePointerDown( e ) {
+    if( !this.mouseIsInside ) {
+      return;
+    }
+
     const elem= document.elementFromPoint(e.clientX, e.clientY);
 
     if( this.enableDrawing ) {
@@ -1021,17 +1031,26 @@ class PlayField {
   }
 
   handlePointerMove( e ) {
-    const elem= document.elementFromPoint(e.clientX, e.clientY);
+    if( this.mouseIsInside ) {
+      const elem= document.elementFromPoint(e.clientX, e.clientY);
 
-    if( this.enableDrawing && this.mouseIsDown && !this.showSolution) {
-      this.historyStack.currentAction().changeCellByElement( elem );
+      if( this.enableDrawing && this.mouseIsDown && !this.showSolution) {
+        this.historyStack.currentAction().changeCellByElement( elem );
+      }
+  
+      this.updateRowColumnHighlightByElement( elem );
     }
-
-    this.updateRowColumnHighlightByElement( elem );
   }
 
   handlePointerLeave( e ) {
-    this.updateRowColumnHighlightByElement( null );
+    if( this.mouseIsInside ) {
+      this.updateRowColumnHighlightByElement( null );
+    }
+    this.mouseIsInside= false;
+  }
+
+  handlePointerEnter() {
+    this.mouseIsInside= true;
   }
 
   handlePointerClick( e ) {
