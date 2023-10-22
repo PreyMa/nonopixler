@@ -21,6 +21,10 @@ main p.clock {
   text-align: center;
 }
 
+main p.clock.stopped {
+  color: grey;
+}
+
 main p.clock-controls {
   margin-top: 0.1rem;
   text-align: center;

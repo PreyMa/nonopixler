@@ -1204,7 +1204,7 @@ class GameClock {
 
     this.seconds= seconds;
     this.referenceTimestamp= Date.now()- 1000*seconds;
-    this.stopped= false;
+    this.stop(false);
     this.draw();
     this.persist();
   }
@@ -1218,6 +1218,7 @@ class GameClock {
 
   stop(doStop= true) {
     this.stopped= doStop;
+    this.element.classList.toggle('stopped', doStop);
   }
 
   hideSeconds(doHide= false) {
