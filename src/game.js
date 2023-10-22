@@ -1254,12 +1254,16 @@ class GameClock {
     this.draw();
   }
 
-  draw() {
+  formatTime(doShowSeconds= true) {
     const minutes= Math.floor(this.seconds / 60);
     const seconds= this.seconds- minutes* 60;
-    const secondsString= this.showSeconds ? (':'+ `${seconds}`.padStart(2, '0')) : 'min';
+    const secondsString= doShowSeconds ? (':'+ `${seconds}`.padStart(2, '0')) : 'min';
 
-    this.element.innerText= `${minutes}${secondsString}`;
+    return `${minutes}${secondsString}`;
+  }
+
+  draw() {
+    this.element.innerText= this.formatTime( this.showSeconds );
 
     this.updateCounter++;
     if( (this.updateCounter > 3) && this.key ) {
@@ -1569,8 +1573,13 @@ document.addEventListener('DOMContentLoaded', () => {
     savedGamesDialog.showModal();
   });
 
-  field.onWinState= () => winDialog.showModal();
   field.onUpdate= () => saveGame();
+  field.onWinState= () => {
+    clock.stop();
+    clock.persist();
+    document.getElementById('win-time-field').innerText= clock.formatTime();
+    winDialog.showModal()
+  };
 
   try {
     const settings= GameSettings.fromQueryParam();
